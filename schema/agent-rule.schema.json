@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rsunkara/agent-rules-spec/schema/agent-rule.schema.json",
+  "title": "Agent Rule Frontmatter",
+  "description": "Schema for validating the YAML frontmatter of structured agent rule files.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Kebab-case identifier for the rule. Must match the filename stem.",
+      "pattern": "^[a-z0-9](-?[a-z0-9])*$",
+      "maxLength": 64
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable summary of what this rule covers. Used by agents to decide relevance.",
+      "maxLength": 1024
+    },
+    "trigger": {
+      "type": "string",
+      "description": "Activation mode for the rule.",
+      "enum": ["always", "auto", "manual"],
+      "default": "always"
+    },
+    "paths": {
+      "type": "array",
+      "description": "Glob patterns (gitignore-style) for file-scoped activation. When trigger is 'auto', the rule activates when the agent accesses files matching any pattern.",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "keywords": {
+      "type": "array",
+      "description": "Prompt keywords for activation. When trigger is 'auto', the rule also activates if the user's prompt contains any keyword.",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 100
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "priority": {
+      "type": "integer",
+      "description": "Conflict resolution priority. Higher values take precedence when rules conflict.",
+      "minimum": -1000,
+      "maximum": 1000,
+      "default": 0
+    },
+    "tags": {
+      "type": "array",
+      "description": "Organizational grouping tags. No semantic effect -- used for filtering and documentation.",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9](-?[a-z0-9])*$",
+        "maxLength": 64
+      },
+      "uniqueItems": true
+    }
+  },
+  "if": {
+    "properties": {
+      "trigger": { "const": "auto" }
+    },
+    "required": ["trigger"]
+  },
+  "then": {
+    "anyOf": [
+      { "required": ["paths"] },
+      { "required": ["keywords"] }
+    ]
+  }
+}
