@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/rsunkara/agent-rules-spec/schema/agent-rule.schema.json",
+  "$id": "https://github.com/rameshsunkara/agent-rules-spec/schema/agent-rule.schema.json",
   "title": "Agent Rule Frontmatter",
   "description": "Schema for validating the YAML frontmatter of structured agent rule files.",
   "type": "object",

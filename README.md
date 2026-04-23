@@ -10,7 +10,7 @@ This repo proposes a shared file format so you can write your rules once in `.ag
 - **[examples/](examples/)** -- Sample rule files showing different trigger modes
 - **[schema/agent-rule.schema.json](schema/agent-rule.schema.json)** -- JSON Schema for frontmatter validation
 - **[compatibility/mapping.md](compatibility/mapping.md)** -- Field-by-field mapping notes for Cursor, Windsurf, Copilot, Cline, JetBrains, Amazon Q, and adjacent tools like Claude Code
-- **[github-issue.md](github-issue.md)** -- The issue text for posting on [agentsmd/agents.md](https://github.com/agentsmd/agents.md)
+- **[https://github.com/agentsmd/agents.md/issues/179](https://github.com/agentsmd/agents.md/issues/179)** -- The GitHub issue proposing this format on agents.md
 
 ## The format
 
