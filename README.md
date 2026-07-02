@@ -12,6 +12,10 @@ This repo proposes a shared file format so you can write your rules once in `.ag
 - **[compatibility/mapping.md](compatibility/mapping.md)** -- Field-by-field mapping notes for Cursor, Windsurf, Copilot, Cline, JetBrains, Amazon Q, and adjacent tools like Claude Code
 - **[https://github.com/agentsmd/agents.md/issues/179](https://github.com/agentsmd/agents.md/issues/179)** -- The GitHub issue proposing this format on agents.md
 
+## Tooling
+
+- **[agent-rules-tool](https://github.com/canardleteer/agent-rules-tool)** -- CLI for validating, linting, and working with agent rule files
+
 ## The format
 
 Markdown with optional YAML frontmatter. A file with no frontmatter is valid (treated as always-on).
