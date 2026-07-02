@@ -81,7 +81,7 @@ A file with no frontmatter is valid -- it's treated as an always-on rule. This m
 
 ### Frontmatter fields
 
-All optional. The first four (`name`, `description`, `trigger`, `paths`) map directly to fields that already exist across tools. The last three are new additions that I think are useful but aren't derived from existing formats.
+All optional. The first four (`name`, `description`, `trigger`, `paths`) map directly to fields that already exist across tools. The last four (`keywords`, `discovery`, `priority`, `tags`) are new additions that I think are useful but aren't derived from existing formats.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
@@ -90,6 +90,7 @@ All optional. The first four (`name`, `description`, `trigger`, `paths`) map dir
 | `trigger` | enum | `always` | One of: `always`, `auto`, `manual` |
 | `paths` | string[] | -- | Gitignore-style glob patterns. When `trigger` is `auto`, the rule loads when matching files are accessed. |
 | `keywords` | string[] | -- | *(New)* Prompt keywords. When `trigger` is `auto`, the rule also loads if the user's prompt contains any of these. |
+| `discovery` | boolean | `false` | *(New)* When `true`, the rule is draft seeking agentic guidance. Activation metadata is not finalized and `paths`/`keywords` are advisory until it graduates. Validators should warn by default. See Discovery mode below. |
 | `priority` | integer | 0 | *(New)* Higher values win when rules conflict. Range: -1000 to 1000. |
 | `tags` | string[] | -- | *(New)* For organization/filtering. No semantic effect. |
 
@@ -100,6 +101,41 @@ All optional. The first four (`name`, `description`, `trigger`, `paths`) map dir
 **`auto`** -- Loaded when the agent touches a file matching `paths` or the user's prompt matches a `keywords` entry. Some tools also support description-only activation, where the model decides relevance without path gating; in this spec that is still `trigger: auto` with a `description` and no `paths` or `keywords`. See [compatibility/mapping.md](compatibility/mapping.md).
 
 **`manual`** -- Only loaded when the user explicitly asks for it. Good for situational things: migration checklists, incident response playbooks, release procedures.
+
+### Discovery mode ("a draft seeking agentic guidance")
+
+`discovery: true` means the rule is a **draft seeking agentic guidance** to becoming a non-draft. Activation metadata is not finalized yet, especially `paths` and `keywords` when `trigger` is `auto`. The expected end state is deterministic activation: binding `paths` or `keywords` for `auto`, or `manual` when the content is situational rather than file-scoped.
+
+While draft, `paths` and `keywords` are advisory. They do not gate loading the way they do after graduation. Non-deterministic loading follows from draft status alone.
+
+Agent Rule Validators treat draft rules gently. Emit a warning whenever `discovery: true` is present. Missing `paths`, empty `keywords`, and other gaps that would fail a finalized `auto` rule should surface as warnings rather than errors.
+
+Use `discovery: true` mainly with `trigger: auto`. It also applies while drafting a `manual` rule whose activation story is not settled yet.
+
+Rules imported from tools that couple model-judgment with non-path-gated activation often start here; see [compatibility/mapping.md](compatibility/mapping.md). They stay draft until scope graduates to binding `paths` or `keywords`.
+
+#### Example discovery offramp workflow
+
+Teams may use agent and model assistance to move a draft toward graduation. This workflow is **optional**; nothing in the format requires it.
+
+The agent runtime (or an `agent-rules` support tool) invokes the model with rule files, linter output, and whatever else helps. It does not decide rule relevance itself. After a mechanical tool call (a linter run, a file edit, and similar), the support tool should tell the model what changed on disk so the next turn sees current files.
+
+If you adopt assisted refinement, two conventions are reasonable:
+
+- The model may update frontmatter (`paths`, `keywords`, description, tags) as scope becomes clear.
+- For the rule body below the frontmatter, the model may only suggest edits; the user must approve before anything is applied.
+
+On the first `discovery: true` rule in a project, the agent may ask once whether the user wants interactive approval or automatic frontmatter updates, then stick to that answer. A support tool may store the choice under `.agents/local/`.
+
+Typical flow:
+
+1. Author writes content, picks `trigger` (usually `auto`), sets `discovery: true`.
+2. The agent and model refine frontmatter as the codebase becomes clearer, honoring the user's preference and seeking approval for body changes.
+3. Set `discovery: false` or drop the field when scope is clear.
+
+Rules that never graduate usually need finalizing, or the content belongs in AGENTS.md.
+
+Per-tool import and export guidance is in [compatibility/mapping.md](compatibility/mapping.md).
 
 ### When rules conflict
 
@@ -162,11 +198,12 @@ The point isn't to invent a brand new concept. It's to standardize the common su
 | `trigger: auto` | (has paths) | auto-attached rule with `globs` | `trigger: glob` | instruction with `applyTo` | (has `paths`) |
 | `trigger: auto` (description only) | N/A | Apply Intelligently | `trigger: model_decision` | on-demand instruction | N/A |
 | `trigger: manual` | N/A | manual rule | `trigger: manual` | (Add Context) | N/A |
+| `discovery: true` | N/A | from Apply Intelligently | from `model_decision` | from on-demand instruction | N/A |
 | `description` | `description` | `description` | `description` | `description` | N/A |
 
 For detailed per-tool migration examples, see [compatibility/mapping.md](compatibility/mapping.md).
 
-JetBrains AI Assistant and Amazon Q fit less neatly into the table above. JetBrains stores some rule metadata in the IDE UI, including a By model decision rule type. Amazon Q has no path-scoping and no named activation mode, but auto-scans all project rules and lets the model decide which apply — partial overlap with model-judgment activation. Claude Code and Cline rules are always-on or path-scoped only. See [compatibility/mapping.md](compatibility/mapping.md) for per-tool detail, including the model-judgment activation table.
+JetBrains AI Assistant and Amazon Q fit less neatly into the five-column table. JetBrains stores rule metadata in the IDE UI, including By model decision. Amazon Q auto-scans plain Markdown rules and lets the model pick relevance — model-judgment overlap without a named mode. Neither tool has a native draft flag like `discovery: true`; importing their model-judgment-shaped rules into `.agents/rules/` still lands as draft here until graduation. Claude Code and Cline rules are always-on or path-scoped only. See [compatibility/mapping.md](compatibility/mapping.md).
 
 ### What adoption looks like
 
@@ -192,8 +229,6 @@ This proposal intentionally stays narrow:
 ## Open questions
 
 I'm genuinely not sure about a few things:
-
-**Apply Intelligently / model-judgment activation.** Cursor Apply Intelligently, Windsurf `model_decision`, JetBrains By model decision, and Copilot on-demand instructions (`description` without `applyTo`) all let the agent decide whether to load a rule from its description. Amazon Q has partial overlap (always-scanned rules, model picks relevance) but no named mode. Claude Code and Cline rules are always-on or path-scoped only. Should this stay as `trigger: auto` without paths, become a fourth trigger mode, or remain tool-specific? See [compatibility/mapping.md](compatibility/mapping.md).
 
 **Cross-file imports.** Claude Code lets you reference other files with `@path/to/file` syntax. Being able to say "see also: ../shared-conventions.md" in a rule would be handy, especially in monorepos. But it adds complexity, and I'm not sure it's worth specifying upfront.
 
