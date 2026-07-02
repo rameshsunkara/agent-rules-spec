@@ -86,7 +86,7 @@ paths:
 ---
 ```
 
-**Note:** Cursor also supports a fourth activation mode ("agent-requested") where the model decides based on the description. This maps to `trigger: auto` with only a `description` and no `paths` or `keywords`. This may be worth formalizing in a future revision.
+**Note:** Cursor also supports Apply Intelligently, where the model decides based on the description. This maps to `trigger: auto` with only a `description` and no `paths` or `keywords`. This may be worth formalizing in a future revision.
 
 ---
 
@@ -130,7 +130,7 @@ paths:
 ---
 ```
 
-**Note:** Windsurf also supports `trigger: model_decision` which is analogous to Cursor's "agent-requested" mode.
+**Note:** Windsurf also supports `trigger: model_decision` which is analogous to Cursor Apply Intelligently.
 
 ---
 
