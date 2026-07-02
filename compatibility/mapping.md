@@ -44,7 +44,7 @@ paths:
 ---
 ```
 
-**Note:** Claude Code rules are always-on or path-scoped only. On-demand procedural guidance belongs in `.claude/skills/`, not `.claude/rules/`.
+Claude Code rules are always-on or path-scoped. On-demand procedural guidance belongs in `.claude/skills/`.
 
 ---
 
@@ -60,6 +60,7 @@ paths:
 | `trigger: always` | `alwaysApply: true` | |
 | `trigger: auto` | `alwaysApply: false` + `globs` present | Default when globs are specified |
 | `trigger: manual` | (no globs, no alwaysApply) | User invokes via chat with @rule |
+| `discovery: true` | Apply Intelligently | Import as draft |
 | `paths` | `globs` | Same glob syntax, different field name |
 | `keywords` | N/A | Not supported |
 | `priority` | N/A | Not supported |
@@ -88,7 +89,7 @@ paths:
 ---
 ```
 
-**Note:** Cursor also supports Apply Intelligently, where the model decides based on the description. This maps to `trigger: auto` with only a `description` and no `paths` or `keywords`. This may be worth formalizing in a future revision.
+Cursor also supports Apply Intelligently (model-judgment from description). See Model-judgment activation and `discovery: true` below. Apply Manually maps to `trigger: manual`.
 
 ---
 
@@ -104,6 +105,7 @@ paths:
 | `trigger: always` | `trigger: always_on` | |
 | `trigger: auto` | `trigger: glob` | Activates on file pattern match |
 | `trigger: manual` | `trigger: manual` | Direct mapping |
+| `discovery: true` | `trigger: model_decision` | Import as draft |
 | `paths` | `globs` | Same glob syntax, different field name |
 | `keywords` | N/A | Not supported |
 | `priority` | N/A | Not supported |
@@ -132,7 +134,7 @@ paths:
 ---
 ```
 
-**Note:** Windsurf also supports `trigger: model_decision`, analogous to Cursor Apply Intelligently. Maps to `trigger: auto` with only a `description` and no `paths` or `keywords`.
+Windsurf also supports `trigger: model_decision`, analogous to Cursor Apply Intelligently. See Model-judgment activation and `discovery: true` below.
 
 ---
 
@@ -174,23 +176,20 @@ paths:
 ---
 ```
 
-Copilot on-demand (description only):
-```yaml
----
-description: Use when writing database migrations or schema changes
----
-```
+Copilot on-demand (description only): Copilot also supports `.instructions.md` files with a `description` and no `applyTo`. Copilot loads them on demand when the description semantically matches the current task. This is model-judgment activation; always-on project instructions use `.github/copilot-instructions.md` instead.
 
-Equivalent in this spec:
+There is no direct graduated equivalent in this spec. Finalized `trigger: auto` requires binding `paths` or `keywords`, and Copilot provides no native draft flag. See Model-judgment activation below for the behavioral overlap. When importing one into `.agents/rules/` before scope is settled, use `discovery: true`:
+
 ```yaml
 ---
 name: migration-guidelines
 description: Use when writing database migrations or schema changes
 trigger: auto
+discovery: true
 ---
 ```
 
-**Note:** Copilot applies `.instructions.md` files via `applyTo` glob match or semantic matching of the `description` to the current task. A file with `description` only (no `applyTo`) is on-demand model-judgment activation — not always-on. Always-on project instructions live in `.github/copilot-instructions.md`. Copilot's `applyTo` accepts a comma-separated glob string (e.g., `"**/*.ts,**/*.tsx"`), while this spec uses `paths` as an array. Convert by splitting on commas and wrapping in an array.
+Copilot's `applyTo` accepts a comma-separated glob string (e.g., `"**/*.ts,**/*.tsx"`), while this spec uses `paths` as an array. Convert by splitting on commas and wrapping in an array.
 
 ---
 
@@ -232,7 +231,7 @@ paths:
 ---
 ```
 
-**Note:** Cline uses the same `paths` field name as Claude Code and this spec. No field renaming needed. Cline rules are always-on or path-scoped only; there is no description-only model-judgment mode for rules. Cline also auto-detects rules from `.cursorrules`, `.windsurfrules`, and `AGENTS.md`.
+Cline uses the same `paths` field name as Claude Code and this spec. Cline rules are always-on or path-scoped; there is no description-only model-judgment mode for rules. Cline also auto-detects rules from `.cursorrules`, `.windsurfrules`, and `AGENTS.md`.
 
 ---
 
@@ -248,12 +247,13 @@ paths:
 | `trigger: always` | Rule Type: Always | Set in IDE |
 | `trigger: auto` | Rule Type: By file patterns | Set in IDE |
 | `trigger: manual` | Rule Type: Manually | Invoked via `@rule:` or `#rule:` |
+| `discovery: true` | Rule Type: By model decision | Import as draft |
 | `paths` | Patterns field (IDE UI) | Not in file frontmatter |
 | `keywords` | Instruction field (IDE UI) | Used for "By model decision" type |
 | `priority` | N/A | Not supported |
 | `tags` | N/A | Not supported |
 
-**Note:** JetBrains keeps metadata in the IDE rather than in file frontmatter. Adopting this format would mean reading frontmatter from the files themselves, which would be a change in their architecture. Rule type By model decision maps to `trigger: auto` with only a `description` and no `paths`.
+JetBrains keeps metadata in the IDE rather than in file frontmatter. Adopting this format would mean reading frontmatter from the files themselves. By model decision follows the same pattern as other model-judgment modes (see below).
 
 ---
 
@@ -272,7 +272,7 @@ paths:
 | `priority` | (toggleable in UI) | Not in file |
 | `tags` | N/A | Not supported |
 
-**Note:** Amazon Q has the simplest rule format — just Markdown files, no frontmatter. All rules under `.amazonq/rules/` are auto-scanned into context; the model evaluates each request against them to decide which apply. That is partial overlap with model-judgment activation (no path gating, relevance from content), but there is no named mode like Apply Intelligently. Users can also toggle rules on or off per chat session in the IDE. Adopting this format would add optional frontmatter for path-scoping and activation control without breaking existing rules (since all fields are optional).
+Amazon Q uses plain Markdown files with no frontmatter. All rules under `.amazonq/rules/` are auto-scanned into context; the model evaluates each request against them to decide which apply. That overlaps with model-judgment activation, but there is no named mode like Apply Intelligently and nothing that signals draft formation the way `discovery: true` does here. Users can also toggle rules on or off per chat session in the IDE. Adopting this format would add optional frontmatter for path-scoping and activation control without breaking existing rules.
 
 ---
 
@@ -296,11 +296,15 @@ trigger: glob       -> trigger: auto     (Windsurf)
 (description only, no paths/applyTo/globs) -> trigger: auto without paths (Cursor Apply Intelligently, Windsurf model_decision, Copilot on-demand, JetBrains By model decision)
 
 trigger: manual     -> trigger: manual   (Windsurf -- no change)
+discovery: true     -> Cursor Apply Intelligently (trigger: auto, discovery: true)
+discovery: true     -> Windsurf trigger: model_decision (trigger: auto, discovery: true)
+discovery: true     -> JetBrains Rule Type: By model decision (trigger: auto, discovery: true)
+discovery: true     -> Copilot on-demand instruction (trigger: auto, discovery: true)
 ```
 
 ### Model-judgment activation
 
-Some tools let the model decide when a rule applies from its description, without path gating. In this spec that maps to `trigger: auto` with a `description` and no `paths` or `keywords`.
+Some tools let the model decide when a rule applies from its description, without path gating. In this spec that is `trigger: auto` with a `description` and no `paths` or `keywords` (see schema for when `discovery: true` applies).
 
 | Native source | When it applies |
 |---------------|-----------------|
@@ -308,8 +312,27 @@ Some tools let the model decide when a rule applies from its description, withou
 | Windsurf `model_decision` | `trigger: model_decision` in frontmatter |
 | JetBrains By model decision | Rule type is By model decision in IDE |
 | Copilot on-demand instructions | `.instructions.md` with `description` only (no `applyTo`) |
-| Amazon Q (default) | All rules auto-scanned; model picks relevance — partial overlap, no named mode |
+| Amazon Q (default) | All rules auto-scanned; model picks relevance (partial overlap, no named mode) |
 
 Claude Code and Cline have no native model-judgment activation for rules. Claude Code steers on-demand procedural guidance to Skills (`.claude/skills/`) instead.
 
 On export to Cursor, Windsurf, JetBrains, or Copilot, emit the native model-judgment shape rather than a path-scoped `auto` rule when the source used description-only activation.
+
+### `discovery: true`
+
+See RFC Discovery mode for the full definition, validation behavior, and optional offramp workflow. In short: draft seeking agentic guidance, with graduation to binding `paths` or `keywords` for `auto` (or `manual` when situational).
+
+Native model-judgment modes (above) often import here first because those tools couple non-path-gated activation with metadata that does not map to graduated `auto` without binding `paths` or `keywords`. That shape stays draft until graduation.
+
+When importing such a rule into this spec, use `trigger: auto` with `discovery: true` unless noted below.
+
+| Native source | Maps to `discovery: true` when… |
+|---------------|----------------------------------|
+| Cursor Apply Intelligently | Rule type is Apply Intelligently |
+| Windsurf `model_decision` | `trigger: model_decision` in frontmatter |
+| JetBrains By model decision | Rule type is By model decision in IDE |
+| Copilot on-demand instructions | `.instructions.md` with `description` only (no `applyTo`) |
+
+Amazon Q has model-judgment overlap (all rules auto-scanned; model picks relevance) but no named mode and no path-scoping. Import shape when wrapping in spec frontmatter remains TBD.
+
+On export from `discovery: true`, emit the native Apply Intelligently / model_decision shape rather than finalized path-scoped `auto`. See per-tool sections above.

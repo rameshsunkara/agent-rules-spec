@@ -25,7 +25,7 @@
     },
     "paths": {
       "type": "array",
-      "description": "Glob patterns (gitignore-style) for file-scoped activation. When trigger is 'auto', the rule activates when the agent accesses files matching any pattern.",
+      "description": "Glob patterns (gitignore-style) for file-scoped activation. When trigger is 'auto', the rule activates when the agent accesses files matching any pattern. When discovery is true, patterns are advisory until the rule is finalized.",
       "items": {
         "type": "string",
         "minLength": 1
@@ -35,7 +35,7 @@
     },
     "keywords": {
       "type": "array",
-      "description": "Prompt keywords for activation. When trigger is 'auto', the rule also activates if the user's prompt contains any keyword.",
+      "description": "Prompt keywords for activation. When trigger is 'auto', the rule also activates if the user's prompt contains any keyword. When discovery is true, keywords are advisory until the rule is finalized.",
       "items": {
         "type": "string",
         "minLength": 1,
@@ -43,6 +43,11 @@
       },
       "minItems": 1,
       "uniqueItems": true
+    },
+    "discovery": {
+      "type": "boolean",
+      "description": "When true, the rule is draft seeking agentic guidance. Activation metadata is not finalized and paths/keywords are advisory until graduation. Validators should emit a default warning when this field is true.",
+      "default": false
     },
     "priority": {
       "type": "integer",
@@ -64,7 +69,8 @@
   },
   "if": {
     "properties": {
-      "trigger": { "const": "auto" }
+      "trigger": { "const": "auto" },
+      "discovery": { "not": { "const": true } }
     },
     "required": ["trigger"]
   },
