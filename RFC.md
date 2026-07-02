@@ -97,7 +97,7 @@ All optional. The first four (`name`, `description`, `trigger`, `paths`) map dir
 
 **`always`** -- Loaded at session start. Use for project-wide things like code style, security policies, naming conventions.
 
-**`auto`** -- Loaded when the agent touches a file matching `paths` or the user's prompt matches a `keywords` entry. This is the mode that matters most for path-scoped rules. It keeps the agent's context focused on what's relevant.
+**`auto`** -- Loaded when the agent touches a file matching `paths` or the user's prompt matches a `keywords` entry. Some tools also support description-only activation, where the model decides relevance without path gating; in this spec that is still `trigger: auto` with a `description` and no `paths` or `keywords`. See [compatibility/mapping.md](compatibility/mapping.md).
 
 **`manual`** -- Only loaded when the user explicitly asks for it. Good for situational things: migration checklists, incident response playbooks, release procedures.
 
@@ -158,14 +158,15 @@ The point isn't to invent a brand new concept. It's to standardize the common su
 | This spec | Claude Code | Cursor | Windsurf | Copilot | Cline |
 |-----------|-------------|--------|----------|---------|-------|
 | `paths` | `paths` | `globs` | `globs` | `applyTo` | `paths` |
-| `trigger: always` | (no paths) | `alwaysApply: true` | `trigger: always_on` | (default) | (no paths) |
-| `trigger: auto` | (has paths) | auto-attached rule with `globs` | `trigger: glob` | path-specific instruction with `applyTo` | (has `paths`) |
-| `trigger: manual` | N/A | manual rule | `trigger: manual` | N/A | N/A |
+| `trigger: always` | (no paths) | `alwaysApply: true` | `trigger: always_on` | `copilot-instructions.md` | (no paths) |
+| `trigger: auto` | (has paths) | auto-attached rule with `globs` | `trigger: glob` | instruction with `applyTo` | (has `paths`) |
+| `trigger: auto` (description only) | N/A | Apply Intelligently | `trigger: model_decision` | on-demand instruction | N/A |
+| `trigger: manual` | N/A | manual rule | `trigger: manual` | (Add Context) | N/A |
 | `description` | `description` | `description` | `description` | `description` | N/A |
 
 For detailed per-tool migration examples, see [compatibility/mapping.md](compatibility/mapping.md).
 
-JetBrains AI Assistant and Amazon Q are relevant here too, but they fit less neatly into a one-row mapping table. JetBrains stores some rule metadata in the IDE UI, and Amazon Q currently treats rule files as always-available project context rather than path-scoped rules.
+JetBrains AI Assistant and Amazon Q fit less neatly into the table above. JetBrains stores some rule metadata in the IDE UI, including a By model decision rule type. Amazon Q has no path-scoping and no named activation mode, but auto-scans all project rules and lets the model decide which apply — partial overlap with model-judgment activation. Claude Code and Cline rules are always-on or path-scoped only. See [compatibility/mapping.md](compatibility/mapping.md) for per-tool detail, including the model-judgment activation table.
 
 ### What adoption looks like
 
@@ -192,7 +193,7 @@ This proposal intentionally stays narrow:
 
 I'm genuinely not sure about a few things:
 
-**Agent-requested trigger.** Cursor and Windsurf both support a mode where the agent decides whether to load a rule based on reading its description. This is useful but it's hard to standardize because it depends on the agent's ability to make that judgment. Should this be a fourth trigger mode, or is it better left as a tool-specific extension?
+**Apply Intelligently / model-judgment activation.** Cursor Apply Intelligently, Windsurf `model_decision`, JetBrains By model decision, and Copilot on-demand instructions (`description` without `applyTo`) all let the agent decide whether to load a rule from its description. Amazon Q has partial overlap (always-scanned rules, model picks relevance) but no named mode. Claude Code and Cline rules are always-on or path-scoped only. Should this stay as `trigger: auto` without paths, become a fourth trigger mode, or remain tool-specific? See [compatibility/mapping.md](compatibility/mapping.md).
 
 **Cross-file imports.** Claude Code lets you reference other files with `@path/to/file` syntax. Being able to say "see also: ../shared-conventions.md" in a rule would be handy, especially in monorepos. But it adds complexity, and I'm not sure it's worth specifying upfront.
 
