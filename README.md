@@ -54,7 +54,7 @@ python scripts/check_spec.py
 ```
 
 The checker tests agreement among schemas, examples, fixtures, and the artifact index. It is
-not a reference implementation. Other tools, including Dylan Durst's
+not a reference implementation. Other tools, including **[canardleteer](https://github.com/canardleteer)**'s
 [`agent-rules-tool`](https://github.com/canardleteer/agent-rules-tool), may run the fixtures.
 
 Agent Rules complements project-wide [AGENTS.md](https://agents.md) instructions and
