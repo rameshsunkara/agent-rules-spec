@@ -1,0 +1,980 @@
+corpus-version: 1
+
+parser-cases:
+  - id: no-frontmatter-global
+    document: |-
+      # Global rule
+      Use UTF-8.
+    expected:
+      valid: true
+      profile: legacy
+      normalized-frontmatter:
+        spec-version: 1
+        activation: always
+      diagnostics: []
+
+  - id: legacy-empty-frontmatter
+    document: |-
+      ---
+      ---
+
+      # Global rule
+    expected:
+      valid: true
+      profile: legacy
+      normalized-frontmatter:
+        spec-version: 1
+        activation: always
+      diagnostics:
+        - code: legacy-implicit-always
+
+  - id: legacy-metadata-only
+    document: |-
+      ---
+      description: Project conventions
+      ---
+
+      Follow project conventions.
+    expected:
+      valid: true
+      profile: legacy
+      normalized-frontmatter:
+        spec-version: 1
+        description: Project conventions
+        activation: always
+      diagnostics:
+        - code: legacy-implicit-always
+
+  - id: legacy-malformed-metadata
+    document: |-
+      ---
+      description:
+        - not
+        - a string
+      ---
+
+      Malformed legacy field.
+    expected:
+      valid: false
+      diagnostics:
+        - code: legacy-invalid-field
+
+  - id: legacy-auto-paths
+    document: |-
+      ---
+      trigger: auto
+      paths:
+        - "src/api/**"
+      ---
+
+      Follow API conventions.
+    expected:
+      valid: true
+      profile: legacy
+      normalized-frontmatter:
+        spec-version: 1
+        activation: on-match
+        paths:
+          - "src/api/**"
+      diagnostics:
+        - code: deprecated-auto
+
+  - id: legacy-auto-without-condition
+    document: |-
+      ---
+      trigger: auto
+      ---
+
+      Ambiguous rule.
+    expected:
+      valid: false
+      diagnostics:
+        - code: legacy-auto-missing-condition
+
+  - id: legacy-auto-paths-and-keywords
+    document: |-
+      ---
+      trigger: auto
+      paths:
+        - "tests/**"
+      keywords:
+        - "test"
+      ---
+
+      Historical but unresolved combination.
+    expected:
+      valid: false
+      diagnostics:
+        - code: paths-keywords-combination-unresolved
+
+  - id: legacy-paths-without-trigger
+    document: |-
+      ---
+      paths:
+        - "src/api/**"
+      ---
+
+      Ambiguous rule.
+    expected:
+      valid: false
+      diagnostics:
+        - code: legacy-condition-without-trigger
+
+  - id: legacy-cursor-globs-without-trigger
+    document: |-
+      ---
+      globs:
+        - "src/api/**"
+      ---
+
+      Native Cursor-shaped input.
+    expected:
+      valid: false
+      diagnostics:
+        - code: legacy-unknown-condition-field
+
+  - id: legacy-copilot-apply-to-without-trigger
+    document: |-
+      ---
+      applyTo: "src/api/**"
+      ---
+
+      Native Copilot-shaped input.
+    expected:
+      valid: false
+      diagnostics:
+        - code: legacy-unknown-condition-field
+
+  - id: legacy-unknown-field-without-trigger
+    document: |-
+      ---
+      future-policy: strict
+      ---
+
+      Unknown legacy semantics.
+    expected:
+      valid: false
+      preserved-fields:
+        future-policy: strict
+      diagnostics:
+        - code: legacy-unknown-field-without-trigger
+
+  - id: legacy-extension-without-trigger
+    document: |-
+      ---
+      x-example-policy: strict
+      ---
+
+      Unknown extension semantics.
+    expected:
+      valid: false
+      preserved-fields:
+        x-example-policy: strict
+      diagnostics:
+        - code: legacy-extension-without-trigger
+
+  - id: legacy-always-with-paths
+    document: |-
+      ---
+      trigger: always
+      paths:
+        - "src/api/**"
+      ---
+
+      Ambiguous rule.
+    expected:
+      valid: false
+      diagnostics:
+        - code: legacy-always-with-condition
+
+  - id: legacy-explicit-trigger-with-unknown-field
+    document: |-
+      ---
+      trigger: always
+      future-policy: strict
+      ---
+
+      Unknown legacy field.
+    expected:
+      valid: false
+      diagnostics:
+        - code: legacy-unknown-field
+
+  - id: legacy-invalid-trigger
+    document: |-
+      ---
+      trigger: sometimes
+      ---
+
+      Unknown legacy trigger.
+    expected:
+      valid: false
+      diagnostics:
+        - code: invalid-trigger
+
+  - id: versioned-empty-frontmatter
+    document: |-
+      ---
+      spec-version: 1
+      ---
+
+      Missing activation.
+    expected:
+      valid: false
+      diagnostics:
+        - code: activation-required
+
+  - id: versioned-trigger-alias
+    document: |-
+      ---
+      spec-version: 1
+      trigger: always
+      ---
+
+      Trigger is legacy-only.
+    expected:
+      valid: false
+      diagnostics:
+        - code: legacy-trigger-not-allowed
+
+  - id: versioned-activation-with-trigger
+    document: |-
+      ---
+      spec-version: 1
+      activation: always
+      trigger: manual
+      ---
+
+      Legacy trigger cannot coexist with activation.
+    expected:
+      valid: false
+      diagnostics:
+        - code: legacy-trigger-not-allowed
+
+  - id: core-always
+    source-filename: code-style.md
+    document: |-
+      ---
+      spec-version: 1
+      name: code-style
+      description: Project-wide code style
+      activation: always
+      tags: [style]
+      ---
+
+      Use the project formatter.
+    expected:
+      valid: true
+      profile: core
+      normalized-frontmatter:
+        spec-version: 1
+        name: code-style
+        description: Project-wide code style
+        activation: always
+        tags: [style]
+      diagnostics: []
+
+  - id: invalid-derived-name
+    source-filename: Bad Name.md
+    document: |-
+      ---
+      spec-version: 1
+      activation: always
+      ---
+
+      The source filename is not a valid effective name.
+    expected:
+      valid: true
+      profile: core
+      diagnostics:
+        - code: invalid-effective-name
+
+  - id: invalid-versioned-field
+    document: |-
+      ---
+      spec-version: 1
+      name: Invalid_Name
+      activation: always
+      ---
+
+      Invalid canonical field.
+    expected:
+      valid: false
+      diagnostics:
+        - code: schema-validation-failed
+
+  - id: core-always-with-paths
+    document: |-
+      ---
+      spec-version: 1
+      activation: always
+      paths:
+        - "src/api/**"
+      ---
+
+      Invalid combination.
+    expected:
+      valid: false
+      diagnostics:
+        - code: always-with-condition
+
+  - id: core-on-match-paths
+    source-filename: api-conventions.md
+    document: |-
+      ---
+      spec-version: 1
+      name: api-conventions
+      activation: on-match
+      paths:
+        - "src/api/**"
+        - "src/routes/**"
+      ---
+
+      Follow API conventions.
+    expected:
+      valid: true
+      profile: core
+      normalized-frontmatter:
+        spec-version: 1
+        name: api-conventions
+        activation: on-match
+        paths:
+          - "src/api/**"
+          - "src/routes/**"
+      diagnostics: []
+
+  - id: core-glob-star-question
+    document: |-
+      ---
+      spec-version: 1
+      activation: on-match
+      paths:
+        - "src/*/test?.ts"
+      ---
+
+      Star and question-mark pattern.
+    expected:
+      valid: true
+      profile: core
+      diagnostics: []
+
+  - id: core-glob-double-star
+    document: |-
+      ---
+      spec-version: 1
+      activation: on-match
+      paths:
+        - "**/*.test.ts"
+      ---
+
+      Double-star pattern.
+    expected:
+      valid: true
+      profile: core
+      diagnostics: []
+
+  - id: invalid-leading-slash-pattern
+    document: |-
+      ---
+      spec-version: 1
+      activation: on-match
+      paths:
+        - "/src/api/**"
+      ---
+
+      Invalid leading slash.
+    expected:
+      valid: false
+      diagnostics:
+        - code: invalid-path-pattern
+
+  - id: invalid-negated-pattern
+    document: |-
+      ---
+      spec-version: 1
+      activation: on-match
+      paths:
+        - "!src/api/**"
+      ---
+
+      Invalid negation.
+    expected:
+      valid: false
+      diagnostics:
+        - code: invalid-path-pattern
+
+  - id: invalid-expanded-pattern
+    document: |-
+      ---
+      spec-version: 1
+      activation: on-match
+      paths:
+        - "src/{api,routes}/[ab].ts"
+      ---
+
+      Invalid braces and character class.
+    expected:
+      valid: false
+      diagnostics:
+        - code: invalid-path-pattern
+
+  - id: invalid-path-segments-pattern
+    document: |-
+      ---
+      spec-version: 1
+      activation: on-match
+      paths:
+        - "src//api/../**/"
+      ---
+
+      Invalid empty, parent, and trailing segments.
+    expected:
+      valid: false
+      diagnostics:
+        - code: invalid-path-pattern
+
+  - id: core-on-match-without-condition
+    document: |-
+      ---
+      spec-version: 1
+      activation: on-match
+      ---
+
+      Missing paths.
+    expected:
+      valid: false
+      diagnostics:
+        - code: on-match-missing-condition
+
+  - id: experimental-manual
+    source-filename: release-checklist.md
+    document: |-
+      ---
+      spec-version: 1
+      name: release-checklist
+      activation: manual
+      ---
+
+      Follow the release checklist.
+    expected:
+      valid: true
+      profile: experimental
+      capabilities: [manual]
+      diagnostics: []
+
+  - id: experimental-manual-paths
+    source-filename: auth-incident-response.md
+    document: |-
+      ---
+      spec-version: 1
+      name: auth-incident-response
+      activation: manual
+      paths:
+        - "src/auth/**"
+      ---
+
+      Follow the auth incident checklist.
+    expected:
+      valid: true
+      profile: experimental
+      capabilities: [manual, manual-paths]
+      diagnostics: []
+
+  - id: manual-with-keywords
+    document: |-
+      ---
+      spec-version: 1
+      activation: manual
+      keywords: ["migration"]
+      ---
+
+      Invalid manual keywords.
+    expected:
+      valid: false
+      diagnostics:
+        - code: manual-keywords-invalid
+
+  - id: experimental-keywords
+    source-filename: database-migration.md
+    document: |-
+      ---
+      spec-version: 1
+      name: database-migration
+      activation: on-match
+      keywords:
+        - "database migration"
+      ---
+
+      Follow the migration checklist.
+    expected:
+      valid: true
+      profile: experimental
+      capabilities: [keywords]
+      diagnostics:
+        - code: experimental-keywords
+
+  - id: unresolved-paths-and-keywords
+    document: |-
+      ---
+      spec-version: 1
+      activation: on-match
+      paths:
+        - "tests/api/**"
+      keywords:
+        - "API test"
+      ---
+
+      Unresolved combination.
+    expected:
+      valid: false
+      diagnostics:
+        - code: paths-keywords-combination-unresolved
+
+  - id: experimental-priority
+    source-filename: priority-rule.md
+    document: |-
+      ---
+      spec-version: 1
+      activation: always
+      priority: 100
+      ---
+
+      Prefer this rule when instructions conflict.
+    expected:
+      valid: true
+      profile: experimental
+      capabilities: [priority]
+      diagnostics:
+        - code: advisory-priority
+
+  - id: versioned-auto
+    document: |-
+      ---
+      spec-version: 1
+      activation: auto
+      paths:
+        - "src/api/**"
+      ---
+
+      Versioned auto is invalid.
+    expected:
+      valid: false
+      diagnostics:
+        - code: invalid-activation
+
+  - id: unsupported-spec-version
+    document: |-
+      ---
+      spec-version: 2
+      activation: always
+      ---
+
+      Unknown document grammar.
+    expected:
+      valid: false
+      diagnostics:
+        - code: unsupported-spec-version
+
+  - id: malformed-spec-version
+    document: |-
+      ---
+      spec-version: "1"
+      activation: always
+      ---
+
+      String versions are invalid.
+    expected:
+      valid: false
+      diagnostics:
+        - code: unsupported-spec-version
+
+  - id: unknown-unprefixed-field
+    document: |-
+      ---
+      spec-version: 1
+      activation: always
+      future-policy: strict
+      ---
+
+      Unknown semantic field.
+    expected:
+      valid: true
+      profile: core
+      exact-interpretation: false
+      preserved-fields:
+        future-policy: strict
+      diagnostics:
+        - code: unknown-unprefixed-field
+
+  - id: namespaced-extension
+    document: |-
+      ---
+      spec-version: 1
+      activation: always
+      x-example-policy: strict
+      ---
+
+      Namespaced extension.
+    expected:
+      valid: true
+      profile: core
+      exact-interpretation: namespace-dependent
+      preserved-fields:
+        x-example-policy: strict
+      diagnostics:
+        - code: unknown-extension-namespace
+
+  - id: invalid-rule-extension
+    source-filename: rule.txt
+    document: |-
+      ---
+      spec-version: 1
+      activation: always
+      ---
+
+      Wrong extension.
+    expected:
+      valid: false
+      diagnostics:
+        - code: invalid-rule-extension
+
+  - id: unclosed-frontmatter
+    document: |-
+      ---
+      spec-version: 1
+      activation: always
+    expected:
+      valid: false
+      diagnostics:
+        - code: unclosed-frontmatter
+
+  - id: frontmatter-not-mapping
+    document: |-
+      ---
+      - spec-version
+      - activation
+      ---
+
+      Frontmatter must be a mapping.
+    expected:
+      valid: false
+      diagnostics:
+        - code: frontmatter-not-mapping
+
+  - id: unsupported-byte-order-mark
+    document: "\uFEFF---\nspec-version: 1\nactivation: always\n---\n"
+    expected:
+      valid: false
+      diagnostics:
+        - code: unsupported-byte-order-mark
+
+  - id: invalid-utf8
+    document-bytes: "ff"
+    expected:
+      valid: false
+      diagnostics:
+        - code: invalid-utf8
+
+  - id: spec-version-float
+    document: |-
+      ---
+      spec-version: 1.0
+      activation: always
+      ---
+
+      Float version.
+    expected:
+      valid: false
+      diagnostics:
+        - code: unsupported-spec-version
+
+  - id: spec-version-boolean
+    document: |-
+      ---
+      spec-version: true
+      activation: always
+      ---
+
+      Boolean version.
+    expected:
+      valid: false
+      diagnostics:
+        - code: unsupported-spec-version
+
+  - id: duplicate-yaml-key
+    document: |-
+      ---
+      spec-version: 1
+      activation: always
+      activation: manual
+      ---
+
+      Duplicate key.
+    expected:
+      valid: false
+      diagnostics:
+        - code: duplicate-frontmatter-key
+
+  - id: yaml-12-plain-string
+    document: |-
+      ---
+      spec-version: 1
+      description: on
+      activation: always
+      ---
+
+      YAML 1.2 keeps "on" as a string.
+    expected:
+      valid: true
+      profile: core
+      normalized-frontmatter:
+        spec-version: 1
+        description: on
+        activation: always
+      diagnostics: []
+
+  - id: yaml-uppercase-plain-string
+    document: |-
+      ---
+      spec-version: 1
+      description: TRUE
+      activation: always
+      ---
+
+      Grammar 1 keeps uppercase TRUE as a string.
+    expected:
+      valid: true
+      profile: core
+      normalized-frontmatter:
+        spec-version: 1
+        description: TRUE
+        activation: always
+      diagnostics: []
+
+  - id: yaml-alias-rejected
+    document: |-
+      ---
+      spec-version: 1
+      name: &rule_name aliased-name
+      description: *rule_name
+      activation: always
+      ---
+
+      Anchors and aliases are invalid.
+    expected:
+      valid: false
+      diagnostics:
+        - code: unsupported-yaml-feature
+
+  - id: yaml-custom-tag-rejected
+    document: |-
+      ---
+      spec-version: 1
+      description: !custom tagged
+      activation: always
+      ---
+
+      Custom tags are invalid.
+    expected:
+      valid: false
+      diagnostics:
+        - code: unsupported-yaml-feature
+
+  - id: yaml-explicit-standard-tag-rejected
+    document: |-
+      ---
+      spec-version: !!int 1
+      activation: always
+      ---
+
+      Explicit standard tags are invalid.
+    expected:
+      valid: false
+      diagnostics:
+        - code: unsupported-yaml-feature
+
+  - id: yaml-non-string-key-rejected
+    document: |-
+      ---
+      spec-version: 1
+      1: value
+      activation: always
+      ---
+
+      Mapping keys must be strings.
+    expected:
+      valid: false
+      diagnostics:
+        - code: unsupported-yaml-feature
+
+  - id: crlf-body-preservation
+    document: "---\r\nspec-version: 1\r\nactivation: always\r\n---\r\n\r\nCRLF body\r\n"
+    expected:
+      valid: true
+      profile: core
+      normalized-frontmatter:
+        spec-version: 1
+        activation: always
+      body-preservation: byte-exact-after-closing-delimiter
+      diagnostics: []
+
+  - id: body-preservation
+    document-file: body-preservation.md
+    expected:
+      valid: true
+      profile: core
+      body-preservation: byte-exact-after-closing-delimiter
+      diagnostics: []
+
+selector-cases:
+  - id: on-match-first-path
+    rule-case: core-on-match-paths
+    repository-root: /repo
+    paths:
+      - /repo/src/api/users.ts
+    expected:
+      selected: true
+
+  - id: on-match-second-path
+    rule-case: core-on-match-paths
+    repository-root: /repo
+    paths:
+      - /repo/src/routes/health.ts
+    expected:
+      selected: true
+
+  - id: on-match-no-path
+    rule-case: core-on-match-paths
+    repository-root: /repo
+    paths:
+      - /repo/src/ui/button.tsx
+    expected:
+      selected: false
+
+  - id: path-outside-repository
+    rule-case: core-on-match-paths
+    repository-root: /repo
+    paths:
+      - /other/src/api/users.ts
+    expected:
+      selected: false
+      diagnostics:
+        - code: path-outside-repository
+
+  - id: relative-path-input
+    rule-case: core-on-match-paths
+    repository-root: /repo
+    paths:
+      - src/api/users.ts
+    expected:
+      selected: true
+
+  - id: star-and-question-match
+    rule-case: core-glob-star-question
+    repository-root: /repo
+    paths:
+      - /repo/src/api/test1.ts
+    expected:
+      selected: true
+
+  - id: star-does-not-cross-separator
+    rule-case: core-glob-star-question
+    repository-root: /repo
+    paths:
+      - /repo/src/api/nested/test1.ts
+    expected:
+      selected: false
+
+  - id: double-star-matches-root-file
+    rule-case: core-glob-double-star
+    repository-root: /repo
+    paths:
+      - /repo/thing.test.ts
+    expected:
+      selected: true
+
+  - id: double-star-matches-nested-file
+    rule-case: core-glob-double-star
+    repository-root: /repo
+    paths:
+      - /repo/src/unit/thing.test.ts
+    expected:
+      selected: true
+
+  - id: matching-is-case-sensitive
+    rule-case: core-on-match-paths
+    repository-root: /repo
+    paths:
+      - /repo/SRC/API/users.ts
+    expected:
+      selected: false
+
+  - id: invalid-parent-segment-input
+    rule-case: core-on-match-paths
+    repository-root: /repo
+    paths:
+      - src/../src/api/users.ts
+    expected:
+      selected: false
+      diagnostics:
+        - code: invalid-selector-path
+
+  - id: invalid-duplicate-separator-input
+    rule-case: core-on-match-paths
+    repository-root: /repo
+    paths:
+      - /repo/src//api/users.ts
+    expected:
+      selected: false
+      diagnostics:
+        - code: invalid-selector-path
+
+  - id: invalid-backslash-input
+    rule-case: core-on-match-paths
+    repository-root: /repo
+    paths:
+      - "src\\api\\users.ts"
+    expected:
+      selected: false
+      diagnostics:
+        - code: invalid-selector-path
+
+  - id: invalid-trailing-separator-input
+    rule-case: core-on-match-paths
+    repository-root: /repo
+    paths:
+      - /repo/src/api/
+    expected:
+      selected: false
+      diagnostics:
+        - code: invalid-selector-path
+
+  - id: invalid-repository-root
+    rule-case: core-on-match-paths
+    repository-root: repo
+    paths:
+      - src/api/users.ts
+    expected:
+      selected: false
+      diagnostics:
+        - code: invalid-repository-root
+
+  - id: mixed-valid-and-invalid-paths
+    rule-case: core-on-match-paths
+    repository-root: /repo
+    paths:
+      - src/api/users.ts
+      - ../outside.ts
+    expected:
+      selected: false
+      diagnostics:
+        - code: invalid-selector-path
+
+  - id: invalid-root-with-no-candidates
+    rule-case: core-always
+    repository-root: repo
+    paths: []
+    expected:
+      selected: false
+      diagnostics:
+        - code: invalid-repository-root

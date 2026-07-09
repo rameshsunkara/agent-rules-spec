@@ -1,279 +1,137 @@
-# Compatibility Mappings
+# How Agent Rules Maps to Existing Tools
 
-Per-tool field mappings between the proposed rule format and each tool's native format.
+**Checked:** 2026-07-09
+**Spec:** [`RFC.md`](../RFC.md)
+**Cases:** [`conformance/v1/projections.yaml`](../conformance/v1/projections.yaml)
 
----
+Field names translate easily; activation does not.
+
+## How to read conversion results
+
+`exact` preserves behavior. `lossy` emits output but changes activation, scope, or ordering.
+`unsupported` would require guessing. Metadata-only loss does not make a conversion lossy.
+
+Native activation and file shapes are verified where noted. Path equivalence remains
+provisional until shared glob tests run against each product.
+
+## Common cases
+
+| Canonical intent | Claude Code | Cursor | Copilot repository / cloud agent |
+|---|---|---|---|
+| Global `always` | Rule without `paths` | `alwaysApply: true` | Repository-wide instruction |
+| `on-match + paths` | `paths` | `globs` with automatic attachment | Cloud-agent `applyTo` |
+| `manual` | No direct rule mode | `alwaysApply: false`, without description or globs | No direct equivalent |
+| Keywords | No direct equivalent | No direct keyword activation | No direct equivalent |
+| Priority | No equivalent | No equivalent | No equivalent |
+
+None of the three products defines case sensitivity, negation, character classes, escaping,
+dotfile behavior, or its matching library. Claude Code and GitHub Copilot also leave `?`
+undefined; Cursor leaves path normalization undefined.
 
 ## Claude Code
 
 **Native location:** `.claude/rules/*.md`
-**Native format:** Markdown with YAML frontmatter
-**AGENTS.md support:** Does not read AGENTS.md natively. Supports importing it via `@AGENTS.md` in CLAUDE.md.
+**Evidence:** [Claude Code memory and rules documentation](https://code.claude.com/docs/en/memory)
+**Checked against:** Documentation and a local Claude Code 2.1.205 test on 2026-07-09
 
-| Proposed Field | Claude Code Equivalent | Notes |
-|-----------|----------------------|-------|
-| `name` | (derived from filename) | Claude Code does not use a `name` field |
-| `description` | `description` | Direct mapping |
-| `trigger: always` | (rule file without `paths` field) | Rules without path constraints load at startup |
-| `trigger: auto` | (rule file with `paths` field) | Rules with `paths` load when matching files are accessed |
-| `trigger: manual` | N/A | Claude Code does not have manual-only rules |
-| `paths` | `paths` | Direct mapping. Same glob syntax. |
-| `keywords` | N/A | Not supported |
-| `priority` | N/A | Not supported. Conflict resolution is implicit. |
-| `tags` | N/A | Not supported |
+- Rules without `paths` load unconditionally.
+- Rules with `paths` load when Claude reads a matching file.
+- Rules are context, not enforced configuration.
+- No direct manual-only rule mode is documented for `.claude/rules/`.
+- Matching through a symlinked path into the project is supported from version 2.1.198.
 
-**Migration example:**
+The local test recorded `global.md` loading with `load_reason: session_start`. After Claude
+read `src/match.ts`, a rule scoped to `src/**/*.ts` loaded with
+`load_reason: path_glob_match`, the original glob, and the triggering file path. A control
+run with no file read loaded only the global rule.
 
-Claude Code native:
-```yaml
----
-description: API design patterns
-paths:
-  - "src/api/**/*.ts"
----
-```
+| Canonical field | Native representation | Fidelity note |
+|---|---|---|
+| `name` | Output filename | No `name` frontmatter field is documented |
+| `description` | None documented | `metadata-loss` |
+| `always` | Omit `paths` | Direct activation mapping |
+| `on-match + paths` | YAML list under `paths` | Activation verified; full glob equivalence pending |
+| `manual + paths` | `paths` | `activation-loss`: becomes automatic path selection |
+| `keywords` | None | `activation-loss` |
+| `priority` | None | `ordering-loss` |
+| `tags` | None | `metadata-loss` |
 
-Equivalent in this spec:
-```yaml
----
-name: api-conventions
-description: API design patterns
-trigger: auto
-paths:
-  - "src/api/**/*.ts"
----
-```
-
----
+Claude documents multiple patterns, `**/*.ts`, `src/**/*`, `*.md`,
+`src/components/*.tsx`, and brace expansion. The `paths` field selects context; it is not an
+authorization boundary.
 
 ## Cursor
 
 **Native location:** `.cursor/rules/*.mdc`
-**Native format:** MDC (Markdown Components) with YAML frontmatter
+**Evidence:** [Cursor rules documentation](https://cursor.com/docs/rules.md)
+**Checked against:** Documentation retrieved 2026-07-09. No hands-on Agent run was recorded
+because the local Cursor CLI was not authenticated.
 
-| Proposed Field | Cursor Equivalent | Notes |
-|-----------|------------------|-------|
-| `name` | (derived from filename) | |
-| `description` | `description` | Direct mapping |
-| `trigger: always` | `alwaysApply: true` | |
-| `trigger: auto` | `alwaysApply: false` + `globs` present | Default when globs are specified |
-| `trigger: manual` | (no globs, no alwaysApply) | User invokes via chat with @rule |
-| `paths` | `globs` | Same glob syntax, different field name |
-| `keywords` | N/A | Not supported |
-| `priority` | N/A | Not supported |
-| `tags` | N/A | Not supported |
+Cursor documents four project-rule modes:
 
-**Migration example:**
+- `alwaysApply: true`: always included; description and globs are ignored.
+- `alwaysApply: false` with `globs`: attached when a matching file is in context.
+- `alwaysApply: false` with `description` only: selected by the agent for relevance.
+- `alwaysApply: false` without description or globs: included only by `@`-mention.
 
-Cursor native:
-```yaml
----
-description: API design patterns
-globs:
-  - "src/api/**/*.ts"
-alwaysApply: false
----
-```
+| Canonical field | Native representation | Fidelity note |
+|---|---|---|
+| `name` | Output filename/path | No `name` frontmatter field is documented |
+| `description` | `description` | Agent-selection hint, not general metadata |
+| `always` | `alwaysApply: true` | Direct activation mapping |
+| `on-match + paths` | Comma-separated `globs`, `alwaysApply: false` | Activation verified; full glob equivalence pending |
+| `manual` | `alwaysApply: false`; omit description and globs | Direct documented mapping |
+| `manual + paths` | Manual shape; omit paths | Behavior preserved; path relevance metadata is dropped |
+| `keywords` | None | `activation-loss` |
+| `priority` | None | `ordering-loss` |
+| `tags` | None | `metadata-loss` |
 
-Equivalent in this spec:
-```yaml
----
-name: api-conventions
-description: API design patterns
-trigger: auto
-paths:
-  - "src/api/**/*.ts"
----
-```
-
-**Note:** Cursor also supports a fourth activation mode ("agent-requested") where the model decides based on the description. This maps to `trigger: auto` with only a `description` and no `paths` or `keywords`. This may be worth formalizing in a future revision.
-
----
-
-## Windsurf (Cognition)
-
-**Native location:** `.windsurf/rules/*.md`
-**Native format:** Markdown with YAML frontmatter
-
-| Proposed Field | Windsurf Equivalent | Notes |
-|-----------|-------------------|-------|
-| `name` | (derived from filename) | |
-| `description` | `description` | Direct mapping |
-| `trigger: always` | `trigger: always_on` | |
-| `trigger: auto` | `trigger: glob` | Activates on file pattern match |
-| `trigger: manual` | `trigger: manual` | Direct mapping |
-| `paths` | `globs` | Same glob syntax, different field name |
-| `keywords` | N/A | Not supported |
-| `priority` | N/A | Not supported |
-| `tags` | N/A | Not supported |
-
-**Migration example:**
-
-Windsurf native:
-```yaml
----
-trigger: glob
-description: API design patterns
-globs:
-  - "src/api/**/*.ts"
----
-```
-
-Equivalent in this spec:
-```yaml
----
-name: api-conventions
-description: API design patterns
-trigger: auto
-paths:
-  - "src/api/**/*.ts"
----
-```
-
-**Note:** Windsurf also supports `trigger: model_decision` which is analogous to Cursor's "agent-requested" mode.
-
----
+Cursor documents `*`, `**`, `*.ts`, `**/*.ts`, `src/**`, and `src/**/*.tsx`, including
+comma-separated patterns.
 
 ## GitHub Copilot
 
 **Native location:** `.github/instructions/*.instructions.md`
-**Native format:** Markdown with YAML frontmatter
+**Evidence:** [GitHub Copilot repository custom instructions](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/add-custom-instructions/add-repository-instructions)
+and the [custom-instructions support matrix](https://docs.github.com/en/copilot/reference/custom-instructions-support)
+**Checked against:** Documentation retrieved 2026-07-09. No Copilot CLI was available for a
+hands-on run.
 
-| Proposed Field | Copilot Equivalent | Notes |
-|-----------|-------------------|-------|
-| `name` | (derived from filename) | |
-| `description` | `description` | Direct mapping |
-| `trigger: always` | (instruction without `applyTo`) | Default: applies to all contexts |
-| `trigger: auto` | (instruction with `applyTo`) | Activates when matching files are referenced |
-| `trigger: manual` | N/A | Not supported |
-| `paths` | `applyTo` | Same glob syntax, different field name |
-| `keywords` | N/A | Not supported |
-| `priority` | N/A | Not supported |
-| `tags` | N/A | Not supported |
+- Path-specific instruction files use a comma-separated `applyTo` string.
+- Matching instructions are automatically added for supported product surfaces as soon as
+  the file is saved.
+- Repository-wide and matching path-specific instructions are combined.
+- No manual-only equivalent is documented for path-specific instructions.
+- `excludeAgent` can exclude either `code-review` or `cloud-agent`.
+- Code review reads instructions from the pull request's base branch.
 
-**Migration example:**
+| Canonical field | Native representation | Fidelity note |
+|---|---|---|
+| `name` | `NAME.instructions.md` filename | No `name` frontmatter field is documented |
+| `description` | None documented | `metadata-loss` |
+| `always` | `.github/copilot-instructions.md` | Repository-wide surface |
+| `on-match + paths` | `applyTo` plus surface-specific `excludeAgent` where needed | Activation verified; full glob equivalence pending |
+| `manual + paths` | `applyTo` | `activation-loss`: becomes automatic path selection |
+| `keywords` | None | `activation-loss` |
+| `priority` | None | `ordering-loss` |
+| `tags` | None | `metadata-loss` |
 
-Copilot native:
-```yaml
----
-description: API design patterns
-applyTo: "src/api/**/*.ts"
----
-```
+GitHub documents `*`, `**`, `**/*`, direct-child and recursive patterns, and brace
+alternatives.
 
-Equivalent in this spec:
-```yaml
----
-name: api-conventions
-description: API design patterns
-trigger: auto
-paths:
-  - "src/api/**/*.ts"
----
-```
+“Copilot” is not a sufficient target name. The official support matrix differs across
+GitHub Chat, cloud agent, code review, IDE Chat, IDE code review, and Copilot CLI. A
+converter profile must name the surface. Repository-wide instructions and `applyTo: "**"`
+are not interchangeable because their supported surfaces differ.
 
-**Note:** Copilot's `applyTo` accepts a comma-separated glob string (e.g., `"**/*.ts,**/*.tsx"`), while this spec uses `paths` as an array. Convert by splitting on commas and wrapping in an array.
+## Other targets
 
----
+Windsurf, Cline, JetBrains AI Assistant, and Amazon Q have not been rechecked for grammar 1.
+New mappings must follow the
+[compatibility contribution requirements](../CONTRIBUTING.md#adding-a-compatibility-target).
 
-## Cline
+## Implementation evidence
 
-**Native location:** `.clinerules/*.md`
-**Native format:** Markdown with optional YAML frontmatter
-
-| Proposed Field | Cline Equivalent | Notes |
-|-----------|-----------------|-------|
-| `name` | (filename) | |
-| `description` | N/A | Not supported in frontmatter |
-| `trigger: always` | (rule without `paths`) | Rules without frontmatter are always active |
-| `trigger: auto` | (rule with `paths`) | Rules with `paths` activate when matching files are in context |
-| `trigger: manual` | N/A | Not supported |
-| `paths` | `paths` | Direct mapping. Same field name, same glob syntax. |
-| `keywords` | N/A | Not supported |
-| `priority` | N/A | Not supported |
-| `tags` | N/A | Not supported |
-
-**Migration example:**
-
-Cline native:
-```yaml
----
-paths:
-  - "src/api/**/*.ts"
----
-```
-
-Equivalent in this spec:
-```yaml
----
-name: api-conventions
-description: API design patterns
-trigger: auto
-paths:
-  - "src/api/**/*.ts"
----
-```
-
-**Note:** Cline uses the same `paths` field name as Claude Code and this spec. No field renaming needed. Cline also auto-detects rules from `.cursorrules`, `.windsurfrules`, and `AGENTS.md`.
-
----
-
-## JetBrains AI Assistant
-
-**Native location:** `.aiassistant/rules/*.md`
-**Native format:** Markdown (metadata managed via IDE UI)
-
-| Proposed Field | JetBrains Equivalent | Notes |
-|-----------|---------------------|-------|
-| `name` | (filename) | |
-| `description` | Instruction field (IDE UI) | Not in file frontmatter |
-| `trigger: always` | Rule Type: Always | Set in IDE |
-| `trigger: auto` | Rule Type: By file patterns | Set in IDE |
-| `trigger: manual` | Rule Type: Manually | Invoked via `@rule:` or `#rule:` |
-| `paths` | Patterns field (IDE UI) | Not in file frontmatter |
-| `keywords` | Instruction field (IDE UI) | Used for "By model decision" type |
-| `priority` | N/A | Not supported |
-| `tags` | N/A | Not supported |
-
-**Note:** JetBrains keeps metadata in the IDE rather than in file frontmatter. Adopting this format would mean reading frontmatter from the files themselves, which would be a change in their architecture.
-
----
-
-## Amazon Q Developer
-
-**Native location:** `.amazonq/rules/*.md`
-**Native format:** Plain Markdown (no frontmatter)
-
-| Proposed Field | Amazon Q Equivalent | Notes |
-|-----------|-------------------|-------|
-| `name` | (filename) | |
-| `description` | (first paragraph, by convention) | Not structured |
-| `trigger` | N/A | All rules auto-scanned |
-| `paths` | N/A | No path-scoping |
-| `keywords` | N/A | Not supported |
-| `priority` | (toggleable in UI) | Not in file |
-| `tags` | N/A | Not supported |
-
-**Note:** Amazon Q has the simplest rule format -- just Markdown files. Adopting this format would add optional frontmatter for path-scoping and activation control without breaking existing rules (since all fields are optional).
-
----
-
-## Conversion Quick Reference
-
-For tool authors, the minimal conversion is:
-
-```
-globs    -> paths     (Cursor, Windsurf)
-applyTo  -> paths     (GitHub Copilot)
-paths    -> paths     (Claude Code, Cline -- no change)
-
-alwaysApply: true   -> trigger: always   (Cursor)
-trigger: always_on  -> trigger: always   (Windsurf)
-(no paths field)    -> trigger: always   (Claude Code, Cline, Copilot)
-
-alwaysApply: false  -> trigger: auto     (Cursor)
-trigger: glob       -> trigger: auto     (Windsurf)
-(has paths field)   -> trigger: auto     (Claude Code, Cline, Copilot)
-
-trigger: manual     -> trigger: manual   (Windsurf -- no change)
-```
+[`agent-rules-tool`](https://github.com/canardleteer/agent-rules-tool) `0.1.0-rc.2` supports
+migration across several native formats using the earlier `always | auto | manual` draft. It
+has not yet been updated for grammar 1.

@@ -1,220 +1,444 @@
-# RFC: Structured Rules Format for .agents/rules/
+# RFC: Structured Rules Format for `.agents/rules/`
 
 **Status:** Draft
-**Date:** 2026-04-14
+**Document grammar:** 1
+**Date:** 2026-07-09
 **Author:** Ramesh Sunkara
-**Affiliation:** NVIDIA (personal capacity)
+**Affiliation:** Independent (personal capacity)
 
----
+## 1. Scope
 
-## What this is
+Agent Rules is a Markdown source and interchange format for AI coding-tool instructions.
+Grammar 1 defines document structure, parsing, path selection, legacy normalization, and
+conversion-fidelity reporting.
 
-A file format spec for structured, path-scoped rules that AI coding agents can share. Think of it as a companion to AGENTS.md: AGENTS.md handles the "here's how this project works" part, and this handles the "when you're working on files in `src/api/`, follow these conventions" part.
+It does not define discovery, imports, signing, hooks, permissions, model or provider
+selection, model-decided activation, internal context assembly, or model compliance. It is
+not a security boundary.
 
-Several tools already support some version of markdown rule files with metadata. The rough shape is similar; the field names and activation models are not.
+The recommended location is `.agents/rules/*.md`. Callers supply rule files, repository
+roots, and candidate paths.
 
----
+The key words **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** are to be
+interpreted as described in BCP 14 when they appear in uppercase.
 
-## Why bother
+## 2. Conformance roles
 
-Several AI coding tools now have project rule systems:
+Implementations claim roles independently.
 
-| Tool | Rules Location | Path-Scoping Field |
-|------|---------------|---------------------|
-| Claude Code | `.claude/rules/*.md` | `paths:` |
-| Cursor | `.cursor/rules/*.mdc` | `globs:` |
-| Windsurf | `.windsurf/rules/*.md` | `globs:` |
-| GitHub Copilot | `.github/instructions/*.instructions.md` | `applyTo:` |
-| Cline | `.clinerules/*.md` | `paths:` |
-| JetBrains AI Assistant | `.aiassistant/rules/*.md` | IDE-managed patterns |
-| Amazon Q | `.amazonq/rules/*.md` | (none) |
+### 2.1 Parser
 
-If your team uses multiple tools, or you maintain an open source project where contributors show up with different agents, you end up maintaining the same rules in 5+ places. Or you use a bridging tool like [Rulesync](https://www.npmjs.com/package/rulesync) to generate all the copies from a single source -- which works, but shouldn't be necessary.
+A conforming parser:
 
-### What's already handled elsewhere
+- parses versioned and defined legacy documents;
+- preserves the Markdown body and unknown frontmatter fields;
+- normalizes defined legacy shapes;
+- rejects ambiguous or invalid combinations; and
+- emits machine-readable diagnostics.
 
-**Instructions** are covered by [AGENTS.md](https://agents.md), which is already widely used across agent tools. Claude Code is an exception -- its native instruction file is `CLAUDE.md`, though it can import AGENTS.md via `@AGENTS.md`.
+A normalized document contains its source filename, normalized frontmatter, Markdown body,
+optional provenance, and any derivable effective name.
 
-**Reusable skills/capabilities** are covered by [Agent Skills](https://agentskills.io), an open format for portable skills. Cursor already discovers skills from `.agents/skills/`, which gives the `.agents/` directory some real cross-tool precedent.
+### 2.2 Selector
 
-**Structured rules with path-scoping** are not covered by either standard, and that's what this proposal is about.
+Given a normalized rule, repository root, and candidate paths, a conforming selector returns
+a selection result and Section 7 diagnostics. Discovery and intent prediction are outside
+conformance.
 
-### Prior attempts
+### 2.3 Converter
 
-A few efforts have taken a run at this:
+A conforming converter projects a normalized document to a target profile and returns the
+output and Section 9 fidelity result.
 
-- **AGENTS-1** ([agentsfolder/spec](https://github.com/agentsfolder/spec)) -- A full `.agents/` directory spec covering prompts, modes, policies, skills, scopes, and profiles. Interesting work, but probably too much at once.
-- **AI Coding Rules** ([aicodingrules.org](https://aicodingrules.org)) -- YAML-first rule spec with detailed trigger/permission semantics. Well thought out, but most tools went with markdown-first and it didn't get adoption.
-- **Bridging tools** (Rulesync, Agentfile, Ruler, Agent Hints) -- Generate tool-specific files from a single source. These confirm the problem is real but don't solve it at the format level.
+### 2.4 Discovery
 
----
+Grammar 1 defines no discovery role. Scanning, nested rule directories, symlinks,
+dependencies, duplicate identities, and trust policy are host-defined.
 
-## Spec
+### 2.5 Diagnostics
 
-### The format
+A diagnostic has a registered `code` and `severity` (`error`, `warning`, or `info`) and may
+include `field`, `line`, `column`, and `message`. `conformance/v1/diagnostics.yaml`
+registers codes and severities. Order is insignificant; fixtures compare code-only
+references as unordered sets.
 
-A rule file is a `.md` file with optional YAML frontmatter:
+## 3. Document format
+
+### 3.1 File and encoding
+
+A rule file:
+
+- uses the `.md` extension;
+- is UTF-8 encoded without a byte-order mark; and
+- contains an optional YAML frontmatter block followed by a Markdown body.
+
+### 3.2 Frontmatter delimiters
+
+If present, frontmatter:
+
+- begins with `---` on the first line, terminated by LF or CRLF;
+- ends with `---` on a line by itself; and
+- contains a mapping using the grammar-1 YAML subset.
+
+Grammar 1 supports string keys, mappings, sequences, quoted or block strings, and plain
+scalars. Plain `null`/`~`, `true`, `false`, decimal integers, and finite decimal numbers
+resolve to their corresponding types; all other implicit forms are strings.
+
+An unclosed frontmatter block or a non-mapping frontmatter value is invalid. For legacy
+normalization only, an empty frontmatter block is treated as an empty mapping. A versioned
+empty mapping is invalid because `activation` is required.
+
+Duplicate mapping keys, anchors, aliases, merge keys, and custom YAML tags are invalid.
+Parsers MUST NOT silently choose one duplicate value.
+
+### 3.3 Body preservation
+
+The body begins immediately after the LF or CRLF following the closing delimiter. Parsers
+and converters MUST preserve its UTF-8 bytes, including line endings, unless the caller
+explicitly requests formatting. Frontmatter serialization MAY change whitespace, line
+endings, and key order.
+
+A `---` sequence inside the Markdown body has no frontmatter meaning.
+
+## 4. Versioning
+
+Versioned frontmatter contains:
+
+```yaml
+spec-version: 1
+```
+
+`spec-version` is a positive integer. Grammar 1 consumers MUST NOT silently interpret an
+unknown version as grammar 1.
+
+Versioned frontmatter MUST contain an explicit `activation`. JSON Schema defaults are
+annotations and do not supply missing values.
+
+`trigger` is legacy-only and MUST NOT appear in versioned frontmatter.
+
+Unversioned documents use only the normalization rules in Section 6. Implementations MUST
+NOT infer unspecified legacy behavior.
+
+## 5. Frontmatter fields
+
+### 5.1 `spec-version`
+
+- Type: integer
+- Grammar-1 value: `1`
+- Required in versioned frontmatter
+
+### 5.2 `name`
+
+- Type: string
+- Pattern: `^[a-z0-9](-?[a-z0-9])*$`
+- Maximum length: 64
+- Optional
+
+If `name` is absent, a valid filename stem becomes the effective name. Otherwise, the
+effective name is unset and the parser warns. The omission remains preserved; a converter
+MAY materialize a valid effective name when required by the target.
+
+### 5.3 `description`
+
+- Type: string
+- Maximum length: 1024
+- Optional
+
+`description` is metadata only and does not affect activation in grammar 1.
+
+### 5.4 `activation`
+
+- Type: enum
+- Values: `always`, `on-match`, `manual`
+- Required in versioned frontmatter
+
+`activation` controls when a rule is selected into context; it does not imply enforcement.
+`always` and `on-match` are core modes. `manual` is an experimental capability
+defined in Section 8.
+
+### 5.5 `paths`
+
+- Type: non-empty array of unique, non-empty strings
+- Optional
+
+Paths are repository-relative glob patterns using Section 7. They are selection metadata,
+not an enforcement or authorization boundary.
+
+### 5.6 `keywords`
+
+- Type: non-empty array of unique, non-empty strings, each at most 100 characters
+- Experimental
+
+Keyword-only matching is experimental and has no portable runtime semantics.
+
+### 5.7 `priority`
+
+- Type: integer from -1000 through 1000
+- Experimental advisory metadata
+
+Consumers MAY use `priority` as an ordering hint but MUST NOT treat that behavior as core
+conformance. Grammar 1 does not define body-conflict detection.
+
+### 5.8 `tags`
+
+- Type: array of unique strings
+- Item pattern: `^[a-z0-9](-?[a-z0-9])*$`
+- Maximum item length: 64
+- Optional and non-semantic
+
+Tags MUST NOT change selection.
+
+### 5.9 Unknown fields and extensions
+
+Parsers and converters MUST preserve unknown fields when round-tripping.
+
+For an unknown unprefixed field, a consumer MUST emit a diagnostic and MUST NOT claim exact
+interpretation.
+
+Extensions SHOULD use an `x-` prefix. The prefix alone does not make an extension safe to
+ignore; its namespace contract must permit that.
+
+## 6. Valid combinations and legacy normalization
+
+### 6.1 Versioned grammar-1 combinations
+
+| Shape | Status |
+|---|---|
+| `always` without `paths` or `keywords` | Core |
+| `always` with `paths` or `keywords` | Invalid |
+| `on-match` with `paths` only | Core |
+| `on-match` with `keywords` only | Valid experimental capability |
+| `on-match` without `paths` or `keywords` | Invalid |
+| `on-match` with both `paths` and `keywords` | Invalid; combination unresolved |
+| `manual` without `keywords` | Valid experimental capability; `paths` optional |
+| `manual` with `keywords` | Invalid |
+
+`priority` and `tags` do not change combination validity.
+
+### 6.2 Legacy documents
+
+Legacy normalization produces grammar-1 frontmatter with `spec-version: 1`. All retained
+fields MUST satisfy the grammar-1 schema; malformed or unknown legacy fields are rejected.
+
+| Unversioned shape | Normalization |
+|---|---|
+| No frontmatter | `activation: always` |
+| Empty frontmatter | `activation: always`; warn `legacy-implicit-always` |
+| Known metadata only (`name`, `description`, `tags`) | Preserve metadata, add `activation: always`; warn |
+| `trigger: always` without conditions | Normalize to `activation: always` |
+| `trigger: auto` with exactly one of `paths` or `keywords` | Normalize to `activation: on-match`; warn `deprecated-auto` |
+| `trigger: auto` with both `paths` and `keywords` | Invalid unresolved combination |
+| `trigger: manual` without keywords | Normalize to `activation: manual`; paths optional |
+| `paths` or `keywords` without `trigger` | Invalid ambiguous input |
+| `trigger: always` with conditions | Invalid ambiguous input |
+| `trigger: auto` without conditions | Invalid |
+
+Other unversioned shapes are invalid unless a later grammar defines them.
+
+An unknown field, native condition field such as `globs` or `applyTo`, extension field, or
+experimental `priority` prevents metadata-only normalization. Such a document is ambiguous
+and MUST NOT be silently broadened to `always`.
+
+## 7. Core path selection
+
+### 7.1 Inputs
+
+Roots MUST be absolute lexical paths with `/` separators. Candidates MAY be
+repository-relative or absolute beneath the root. Backslashes, `//`, trailing `/` except for
+`/` itself, and `.` or `..` segments are invalid. Selectors neither access the
+filesystem nor resolve symlinks. Any invalid root or candidate fails the request before rule
+evaluation. Valid candidates are normalized to repository-relative paths. Selectors MUST
+NOT predict future edits.
+
+### 7.2 Pattern semantics
+
+Patterns match the entire normalized repository-relative path.
+
+Grammar 1 defines:
+
+- `*` — zero or more characters other than `/`;
+- `?` — exactly one character other than `/`;
+- `**` — zero or more characters, including `/`; and
+- `**/` — zero or more complete path segments.
+
+Matching is case-sensitive. A leading `/`, negation (`!`), brace expansion, character
+classes, backslash escapes, and platform-native separators are not supported in grammar 1.
+
+Examples:
+
+| Pattern | Matches | Does not match |
+|---|---|---|
+| `src/api/**` | `src/api/users.ts` | `src/ui/users.ts` |
+| `**/*.test.ts` | `thing.test.ts`, `src/thing.test.ts` | `src/thing.ts` |
+| `src/?pi/*.ts` | `src/api/user.ts` | `src/long-api/user.ts` |
+
+Multiple path entries are OR alternatives.
+
+### 7.3 Selection
+
+- After input validation, an `always` rule is selected without path matching.
+- An `on-match` core rule is selected when any candidate path matches any pattern.
+- A manual or keyword rule requires a host capability and is outside selector
+  conformance.
+
+## 8. Experimental capabilities
+
+### 8.1 Manual
+
+A `manual` rule is never selected automatically. Grammar 1 does not define invocation
+syntax, duplicate-name resolution, invocation duration, or lookup by name, path, or UI
+identifier.
+
+`manual + paths` distinguishes manual relevance from automatic path selection. Its paths do
+not restrict invocation.
+
+### 8.2 Keywords
+
+Keyword-only `on-match` rules are valid but experimental. Hosts define tokenization, Unicode
+normalization, phrase matching, input sources, and lifetime.
+
+`paths + keywords` is invalid: OR could bypass path relevance, while AND would differ from
+the historical draft.
+
+### 8.3 Priority
+
+Dropping advisory `priority` produces an `ordering-loss` finding.
+
+## 9. Conversion fidelity
+
+### 9.1 Outcome
+
+Each conversion declares a target profile with product, surface, observation date, optional
+version, evidence, and machine-readable capabilities. Conformance applies to that profile,
+not merely the product.
+
+- `exact` — the profile preserves behavior.
+- `lossy` — output broadens, narrows, drops, or makes behavior advisory.
+- `unsupported` — output would invent behavior or violate a required source semantic.
+
+`path-semantics` may be `agent-rules-1` only after verification against Section 7.
+Informative fixtures may use `unverified`, but such a profile cannot produce a normative
+`exact` result.
+
+A `lossy` result MUST contain an activation, scope, or ordering finding. Dropped
+non-semantic metadata may be reported on an `exact` conversion without changing its
+outcome. Unknown semantic fields prohibit an `exact` result.
+
+Converter fixtures MUST identify the output filename, target frontmatter (`null` when
+omitted), and body handling. Omitting an output is valid only for `unsupported`.
+
+### 9.2 Findings
+
+Findings use these stable kinds:
+
+- `activation-loss`
+- `scope-loss`
+- `ordering-loss`
+- `metadata-loss`
+
+Detail codes are extensible and versioned separately. Human messages are informative.
+
+```yaml
+outcome: unsupported
+target-profile:
+  id: cursor-project-rules-docs-2026-07-09
+  product: Cursor
+  surface: project-rules
+  observed: "2026-07-09"
+  evidence: https://cursor.com/docs/rules.md
+  capabilities:
+    activation-modes: [always, on-match, manual]
+    path-semantics: unverified
+    keywords: false
+    priority: false
+    metadata-fields: [name, description]
+findings:
+  - kind: activation-loss
+    code: keyword-selection-unsupported
+    field: keywords
+    message: Cursor has no keyword activation mode.
+```
+
+## 10. Security considerations
+
+Rule files are untrusted input and may contain prompt-injection instructions.
+Implementations should expose selected rules, preserve provenance, scrutinize rules from
+dependencies or untrusted changes, and avoid treating path metadata as authorization.
+Enforceable controls require hooks, sandboxing, or permission systems.
+
+Ignoring an unknown field may broaden activation, so an older consumer cannot claim exact
+interpretation.
+
+## 11. Governance and version compatibility
+
+In a tagged release, only artifacts under `normative` in `spec/index.yaml` are normative.
+Implementations are advised to pin and report a release or commit.
+
+Incompatible interpretation changes require a new document grammar value. Diagnostics and
+fidelity detail codes may evolve independently.
+
+The project governance and contribution process are defined in `GOVERNANCE.md` and
+`CONTRIBUTING.md`.
+
+## 12. Examples
+
+### 12.1 Global rule
 
 ```markdown
 ---
+spec-version: 1
+name: code-style
+description: Project-wide code conventions
+activation: always
+---
+
+Use the project formatter.
+```
+
+### 12.2 Path-selected rule
+
+```markdown
+---
+spec-version: 1
 name: api-conventions
-description: REST API design patterns for this codebase
-trigger: auto
+description: API conventions
+activation: on-match
 paths:
-  - "src/api/**/*.ts"
-  - "src/routes/**/*.ts"
-priority: 100
-tags: [api, rest, backend]
+  - "src/api/**"
+  - "src/routes/**"
 ---
 
-# API Conventions
-
-When writing API endpoints in this project:
-
-1. Use RESTful naming conventions for routes
-2. Return consistent error format: `{ error: string, code: number }`
-3. Validate request bodies with zod schemas before processing
-4. Include OpenAPI annotations for all public endpoints
+Validate request bodies before processing.
 ```
 
-A file with no frontmatter is valid -- it's treated as an always-on rule. This means existing plain markdown rule files work without changes.
+### 12.3 Experimental manual rule with paths
 
-### Frontmatter fields
-
-All optional. The first four (`name`, `description`, `trigger`, `paths`) map directly to fields that already exist across tools. The last three are new additions that I think are useful but aren't derived from existing formats.
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `name` | string | filename stem | Kebab-case identifier. Max 64 chars. Pattern: `[a-z0-9](-?[a-z0-9])*` |
-| `description` | string | -- | What this rule covers. Agents can use this to decide whether to load it. Max 1024 chars. |
-| `trigger` | enum | `always` | One of: `always`, `auto`, `manual` |
-| `paths` | string[] | -- | Gitignore-style glob patterns. When `trigger` is `auto`, the rule loads when matching files are accessed. |
-| `keywords` | string[] | -- | *(New)* Prompt keywords. When `trigger` is `auto`, the rule also loads if the user's prompt contains any of these. |
-| `priority` | integer | 0 | *(New)* Higher values win when rules conflict. Range: -1000 to 1000. |
-| `tags` | string[] | -- | *(New)* For organization/filtering. No semantic effect. |
-
-### Trigger modes
-
-**`always`** -- Loaded at session start. Use for project-wide things like code style, security policies, naming conventions.
-
-**`auto`** -- Loaded when the agent touches a file matching `paths` or the user's prompt matches a `keywords` entry. This is the mode that matters most for path-scoped rules. It keeps the agent's context focused on what's relevant.
-
-**`manual`** -- Only loaded when the user explicitly asks for it. Good for situational things: migration checklists, incident response playbooks, release procedures.
-
-### When rules conflict
-
-1. Higher `priority` wins.
-2. If tied, more specific path wins (`src/api/auth/**` beats `src/**`).
-3. If still tied, rules closer to the working directory win over rules closer to the project root.
-
-### File conventions
-
-- `.md` extension
-- Kebab-case filenames matching the `name` field
-- Can be nested in subdirectories for organization (`rules/frontend/react-patterns.md`)
-- UTF-8 encoded
-- YAML 1.2 for frontmatter
-
+```markdown
+---
+spec-version: 1
+name: auth-incident-response
+activation: manual
+paths:
+  - "src/auth/**"
 ---
 
-## Recommended directory layout
-
-This spec defines a file format, not a directory. But the obvious place to put shared rules is `.agents/rules/`:
-
-```
-project-root/
-├── AGENTS.md                        # Project instructions (existing standard)
-├── .agents/
-│   ├── rules/                       # Shared rule files
-│   │   ├── code-style.md
-│   │   ├── testing.md
-│   │   ├── security.md
-│   │   └── frontend/
-│   │       └── react-patterns.md
-│   ├── skills/                      # Agent Skills (existing standard)
-│   │   └── deploy/
-│   │       └── SKILL.md
-│   └── local/                       # Personal overrides (.gitignored)
-│       └── rules/
-│           └── preferences.md
-├── packages/                        # Monorepo support
-│   └── api/
-│       ├── AGENTS.md
-│       └── .agents/
-│           └── rules/
-│               └── api-conventions.md
+Follow the authentication incident checklist.
 ```
 
-Why `.agents/` and not `.ai/` or something else: it matches the AGENTS.md naming, aligns with the discussion in [agentsmd/agents.md#71](https://github.com/agentsmd/agents.md/issues/71), and Cursor already reads `.agents/skills/`. A hidden directory also keeps the repo root clean -- AGENTS.md stays visible for humans, `.agents/` holds the machine-oriented stuff.
+## 13. Compatibility mappings
 
-The `local/` subdirectory should be gitignored. Every tool has some version of personal overrides; this standardizes where they go.
+Tool mappings are dated notes, not part of the document grammar, because products can
+change without a revision to this specification. See
+[`compatibility/mapping.md`](compatibility/mapping.md) and the projection fixtures under
+`conformance/v1/`.
 
----
+## 14. References
 
-## How this maps to existing tools
-
-The point isn't to invent a brand new concept. It's to standardize the common subset that already exists across several tools.
-
-| This spec | Claude Code | Cursor | Windsurf | Copilot | Cline |
-|-----------|-------------|--------|----------|---------|-------|
-| `paths` | `paths` | `globs` | `globs` | `applyTo` | `paths` |
-| `trigger: always` | (no paths) | `alwaysApply: true` | `trigger: always_on` | (default) | (no paths) |
-| `trigger: auto` | (has paths) | auto-attached rule with `globs` | `trigger: glob` | path-specific instruction with `applyTo` | (has `paths`) |
-| `trigger: manual` | N/A | manual rule | `trigger: manual` | N/A | N/A |
-| `description` | `description` | `description` | `description` | `description` | N/A |
-
-For detailed per-tool migration examples, see [compatibility/mapping.md](compatibility/mapping.md).
-
-JetBrains AI Assistant and Amazon Q are relevant here too, but they fit less neatly into a one-row mapping table. JetBrains stores some rule metadata in the IDE UI, and Amazon Q currently treats rule files as always-available project context rather than path-scoped rules.
-
-### What adoption looks like
-
-Realistically, tools would first add `.agents/rules/` as an additional source alongside their existing directories. Both locations work, no migration needed. If the format gets traction, tools could start preferring `.agents/rules/` and eventually treat their native directories as legacy.
-
-I don't think deprecating tool-specific directories is realistic in the near term. The goal is to give people a single place that works everywhere, not to force migration.
-
----
-
-## Out of scope
-
-This proposal intentionally stays narrow:
-
-- **Not touching AGENTS.md.** It works, it's adopted, leave it alone.
-- **Not touching Agent Skills.** Same. Already cross-tool.
-- **Not standardizing hooks or lifecycle events.** Tools have wildly different hook models (Claude Code has many event types, most tools have none). Way too early.
-- **Not standardizing MCP config.** Already handled by `.mcp.json`.
-- **Not defining a permission/policy system.** Every tool's permission model is different enough that a shared format would be either too vague to be useful or too specific to be portable. Worth exploring later, separately.
-- **Not picking a model or provider.** That's inherently tool-specific.
-
----
-
-## Open questions
-
-I'm genuinely not sure about a few things:
-
-**Agent-requested trigger.** Cursor and Windsurf both support a mode where the agent decides whether to load a rule based on reading its description. This is useful but it's hard to standardize because it depends on the agent's ability to make that judgment. Should this be a fourth trigger mode, or is it better left as a tool-specific extension?
-
-**Cross-file imports.** Claude Code lets you reference other files with `@path/to/file` syntax. Being able to say "see also: ../shared-conventions.md" in a rule would be handy, especially in monorepos. But it adds complexity, and I'm not sure it's worth specifying upfront.
-
-**Manifest file.** Large monorepos might benefit from an `.agents/manifest.json` that tells tools where to find rules without scanning the whole tree. But this feels premature -- probably better to see if the basic format gets adopted first.
-
-**Frontmatter validation.** I've included a JSON Schema (`schema/agent-rule.schema.json`) for validating frontmatter, but it's not clear that tools should be expected to validate. Lenient parsing is probably better for adoption.
-
----
-
-## References
-
-- AGENTS.md: [agents.md](https://agents.md) / [GitHub](https://github.com/agentsmd/agents.md)
-- Agent Skills: [agentskills.io](https://agentskills.io/specification) / [GitHub](https://github.com/agentskills/agentskills)
-- AGENTS.md directory discussion: [agentsmd/agents.md#71](https://github.com/agentsmd/agents.md/issues/71)
-- .agents folder spec: [agentsfolder/spec](https://github.com/agentsfolder/spec)
-- AI Coding Rules: [aicodingrules.org](https://aicodingrules.org)
-- Agentic AI Foundation: [aaif.io](https://aaif.io)
-- Claude Code docs: [code.claude.com/docs](https://code.claude.com/docs/en/memory)
-- Cursor rules: [cursor.com/docs/context/rules](https://cursor.com/docs/context/rules)
-- GitHub Copilot instructions: [docs.github.com](https://docs.github.com/copilot/customizing-copilot/adding-custom-instructions-for-github-copilot)
-- Cline rules: [docs.cline.bot/customization/cline-rules](https://docs.cline.bot/customization/cline-rules)
-- Windsurf rules: [docs.windsurf.com](https://docs.windsurf.com/windsurf/cascade/memories)
-- JetBrains AI Assistant docs: [jetbrains.com/help/ai-assistant](https://www.jetbrains.com/help/ai-assistant/configure-agent-behavior.html)
-- Amazon Q rules: [docs.aws.amazon.com/amazonq](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/context-project-rules.html)
-- Rulesync: [npmjs.com/package/rulesync](https://www.npmjs.com/package/rulesync)
+- [AGENTS.md](https://agents.md)
+- [Agent Skills](https://agentskills.io/specification)
+- [Issue #179](https://github.com/agentsmd/agents.md/issues/179)
+- [Claude Code memory and rules](https://code.claude.com/docs/en/memory)
+- [Cursor rules](https://cursor.com/docs/rules.md)
+- [GitHub Copilot custom instructions](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/add-custom-instructions/add-repository-instructions)
+- [Cline rules](https://docs.cline.bot/customization/cline-rules)
+- [Windsurf rules](https://docs.windsurf.com/windsurf/cascade/memories)

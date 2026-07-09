@@ -1,0 +1,16 @@
+specification: agent-rules
+status: draft
+document-grammar: 1
+normative:
+  rfc: RFC.md
+  schemas:
+    - schema/agent-rule.schema.json
+    - schema/projection-result.schema.json
+  conformance:
+    - conformance/v1/cases.yaml
+    - conformance/v1/body-preservation.md
+    - conformance/v1/diagnostics.yaml
+informative:
+  projections: conformance/v1/projections.yaml
+  compatibility: compatibility/mapping.md
+  governance: GOVERNANCE.md

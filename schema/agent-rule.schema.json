@@ -1,41 +1,47 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/rameshsunkara/agent-rules-spec/schema/agent-rule.schema.json",
-  "title": "Agent Rule Frontmatter",
-  "description": "Schema for validating the YAML frontmatter of structured agent rule files.",
+  "$id": "https://agent-rules.org/schema/v1/agent-rule.schema.json",
+  "title": "Agent Rule Frontmatter — Document Grammar 1",
+  "description": "Schema for versioned YAML frontmatter in an Agent Rules document. Legacy normalization and Markdown body parsing are specified by RFC.md and the conformance corpus.",
   "type": "object",
-  "additionalProperties": false,
+  "required": ["spec-version", "activation"],
   "properties": {
+    "spec-version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Agent Rules document grammar."
+    },
     "name": {
       "type": "string",
-      "description": "Kebab-case identifier for the rule. Must match the filename stem.",
+      "description": "Kebab-case rule identifier. When absent, the effective name is the filename stem.",
       "pattern": "^[a-z0-9](-?[a-z0-9])*$",
       "maxLength": 64
     },
     "description": {
       "type": "string",
-      "description": "Human-readable summary of what this rule covers. Used by agents to decide relevance.",
+      "description": "Opaque human-readable summary. It has no model-decided activation semantics in grammar 1.",
       "maxLength": 1024
     },
-    "trigger": {
+    "activation": {
       "type": "string",
-      "description": "Activation mode for the rule.",
-      "enum": ["always", "auto", "manual"],
-      "default": "always"
+      "description": "Rule selection mode. 'manual' is an experimental capability.",
+      "enum": ["always", "on-match", "manual"]
     },
+    "trigger": false,
     "paths": {
       "type": "array",
-      "description": "Glob patterns (gitignore-style) for file-scoped activation. When trigger is 'auto', the rule activates when the agent accesses files matching any pattern.",
+      "description": "Repository-relative grammar-1 glob patterns used for path selection.",
       "items": {
         "type": "string",
-        "minLength": 1
+        "minLength": 1,
+        "pattern": "^(?![!/])(?!.*//)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*\\/$)(?!.*[{}\\[\\]\\\\]).+$"
       },
       "minItems": 1,
       "uniqueItems": true
     },
     "keywords": {
       "type": "array",
-      "description": "Prompt keywords for activation. When trigger is 'auto', the rule also activates if the user's prompt contains any keyword.",
+      "description": "Experimental request-selection terms. Valid only as the sole condition for 'on-match'.",
       "items": {
         "type": "string",
         "minLength": 1,
@@ -46,14 +52,13 @@
     },
     "priority": {
       "type": "integer",
-      "description": "Conflict resolution priority. Higher values take precedence when rules conflict.",
+      "description": "Experimental advisory ordering metadata.",
       "minimum": -1000,
-      "maximum": 1000,
-      "default": 0
+      "maximum": 1000
     },
     "tags": {
       "type": "array",
-      "description": "Organizational grouping tags. No semantic effect -- used for filtering and documentation.",
+      "description": "Non-semantic organizational tags.",
       "items": {
         "type": "string",
         "pattern": "^[a-z0-9](-?[a-z0-9])*$",
@@ -62,16 +67,71 @@
       "uniqueItems": true
     }
   },
-  "if": {
-    "properties": {
-      "trigger": { "const": "auto" }
+  "additionalProperties": true,
+  "$comment": "Unknown fields are accepted for forward-compatible parsing. Implementations preserve and diagnose unknown unprefixed fields; their presence prohibits an exact semantic-interpretation claim.",
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "activation": {
+            "const": "always"
+          }
+        },
+        "required": ["activation"]
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            {
+              "required": ["paths"]
+            },
+            {
+              "required": ["keywords"]
+            }
+          ]
+        }
+      }
     },
-    "required": ["trigger"]
-  },
-  "then": {
-    "anyOf": [
-      { "required": ["paths"] },
-      { "required": ["keywords"] }
-    ]
-  }
+    {
+      "if": {
+        "properties": {
+          "activation": {
+            "const": "on-match"
+          }
+        },
+        "required": ["activation"]
+      },
+      "then": {
+        "oneOf": [
+          {
+            "required": ["paths"],
+            "not": {
+              "required": ["keywords"]
+            }
+          },
+          {
+            "required": ["keywords"],
+            "not": {
+              "required": ["paths"]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "activation": {
+            "const": "manual"
+          }
+        },
+        "required": ["activation"]
+      },
+      "then": {
+        "not": {
+          "required": ["keywords"]
+        }
+      }
+    }
+  ]
 }

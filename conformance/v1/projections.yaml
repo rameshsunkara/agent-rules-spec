@@ -1,0 +1,260 @@
+corpus-version: 1
+status: mixed-verification
+
+profiles:
+  cursor:
+    id: cursor-project-rules-docs-2026-07-09
+    product: Cursor
+    surface: project-rules
+    observed: "2026-07-09"
+    evidence: https://cursor.com/docs/rules.md
+    capabilities:
+      activation-modes: [always, on-match, manual]
+      path-semantics: unverified
+      keywords: false
+      priority: false
+      metadata-fields: [name, description]
+  claude:
+    id: claude-code-rules-docs-2026-07-09
+    product: Claude Code
+    surface: project-rules
+    observed: "2026-07-09"
+    evidence: https://code.claude.com/docs/en/memory
+    capabilities:
+      activation-modes: [always, on-match]
+      path-semantics: unverified
+      keywords: false
+      priority: false
+      metadata-fields: []
+  copilot-path:
+    id: github-copilot-cloud-agent-2026-07-09
+    product: GitHub Copilot
+    surface: cloud-agent-path-instructions
+    observed: "2026-07-09"
+    evidence: https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/add-custom-instructions/add-repository-instructions
+    capabilities:
+      activation-modes: [on-match]
+      path-semantics: unverified
+      keywords: false
+      priority: false
+      metadata-fields: [name]
+  copilot-global:
+    id: github-copilot-repository-instructions-2026-07-09
+    product: GitHub Copilot
+    surface: repository-instructions
+    observed: "2026-07-09"
+    evidence: https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/add-custom-instructions/add-repository-instructions
+    capabilities:
+      activation-modes: [always]
+      path-semantics: none
+      keywords: false
+      priority: false
+      metadata-fields: []
+
+projections:
+  - id: always-to-cursor
+    source-case: core-always
+    target-profile: cursor
+    verification: verified-docs
+    expected:
+      outcome: exact
+      output:
+        filename: code-style.mdc
+        frontmatter:
+          description: Project-wide code style
+          alwaysApply: true
+        body: |-
+
+          Use the project formatter.
+      findings:
+        - kind: metadata-loss
+          code: tags-unsupported
+          field: tags
+          message: Cursor does not preserve canonical tags.
+
+  - id: paths-to-cursor
+    source-case: core-on-match-paths
+    target-profile: cursor
+    verification: pending-path-semantics
+    expected:
+      outcome: exact
+      output:
+        filename: api-conventions.mdc
+        frontmatter:
+          globs: "src/api/**,src/routes/**"
+          alwaysApply: false
+        body: |-
+
+          Follow API conventions.
+      findings: []
+
+  - id: manual-to-cursor
+    source-case: experimental-manual
+    target-profile: cursor
+    verification: verified-docs
+    expected:
+      outcome: exact
+      output:
+        filename: release-checklist.mdc
+        frontmatter:
+          alwaysApply: false
+        body: |-
+
+          Follow the release checklist.
+      findings: []
+
+  - id: always-to-claude
+    source-case: core-always
+    target-profile: claude
+    verification: verified-docs-and-2.1.205
+    expected:
+      outcome: exact
+      output:
+        filename: code-style.md
+        frontmatter: null
+        body: |-
+
+          Use the project formatter.
+      findings:
+        - kind: metadata-loss
+          code: description-undocumented
+          field: description
+          message: Claude Code does not document description frontmatter for rules.
+        - kind: metadata-loss
+          code: tags-unsupported
+          field: tags
+          message: Claude Code does not preserve canonical tags.
+
+  - id: paths-to-claude
+    source-case: core-on-match-paths
+    target-profile: claude
+    verification: pending-path-semantics
+    expected:
+      outcome: exact
+      output:
+        filename: api-conventions.md
+        frontmatter:
+          paths: ["src/api/**", "src/routes/**"]
+        body: |-
+
+          Follow API conventions.
+      findings: []
+
+  - id: always-to-copilot
+    source-case: core-always
+    target-profile: copilot-global
+    verification: verified-docs
+    expected:
+      outcome: exact
+      output:
+        filename: copilot-instructions.md
+        frontmatter: null
+        body: |-
+
+          Use the project formatter.
+      findings:
+        - kind: metadata-loss
+          code: name-unsupported
+          field: name
+          message: Repository-wide instructions do not preserve per-rule identity.
+        - kind: metadata-loss
+          code: description-unsupported
+          field: description
+          message: Repository-wide instructions do not preserve description metadata.
+        - kind: metadata-loss
+          code: tags-unsupported
+          field: tags
+          message: Repository-wide instructions do not preserve canonical tags.
+
+  - id: paths-to-copilot
+    source-case: core-on-match-paths
+    target-profile: copilot-path
+    verification: pending-path-semantics
+    expected:
+      outcome: exact
+      output:
+        filename: api-conventions.instructions.md
+        frontmatter:
+          applyTo: "src/api/**,src/routes/**"
+          excludeAgent: "code-review"
+        body: |-
+
+          Follow API conventions.
+      findings: []
+
+  - id: manual-paths-to-cursor
+    source-case: experimental-manual-paths
+    target-profile: cursor
+    verification: verified-docs
+    expected:
+      outcome: exact
+      output:
+        filename: auth-incident-response.mdc
+        frontmatter:
+          alwaysApply: false
+        body: |-
+
+          Follow the auth incident checklist.
+      findings:
+        - kind: metadata-loss
+          code: manual-path-relevance-unsupported
+          field: paths
+          message: Cursor manual rules do not preserve path relevance metadata.
+
+  - id: manual-paths-to-claude
+    source-case: experimental-manual-paths
+    target-profile: claude
+    verification: verified-docs-and-2.1.205
+    expected:
+      outcome: lossy
+      output:
+        filename: auth-incident-response.md
+        frontmatter:
+          paths: ["src/auth/**"]
+        body: |-
+
+          Follow the auth incident checklist.
+      findings:
+        - kind: activation-loss
+          code: manual-became-path-automatic
+          field: activation
+          message: Claude Code paths make the rule automatic.
+
+  - id: manual-paths-to-copilot
+    source-case: experimental-manual-paths
+    target-profile: copilot-path
+    verification: verified-docs
+    expected:
+      outcome: lossy
+      output:
+        filename: auth-incident-response.instructions.md
+        frontmatter:
+          applyTo: "src/auth/**"
+          excludeAgent: "code-review"
+        body: |-
+
+          Follow the auth incident checklist.
+      findings:
+        - kind: activation-loss
+          code: manual-became-path-automatic
+          field: activation
+          message: Copilot applyTo makes the instruction automatic.
+
+  - id: priority-to-cursor
+    source-case: experimental-priority
+    target-profile: cursor
+    verification: verified-docs
+    expected:
+      outcome: lossy
+      output:
+        filename: priority-rule.mdc
+        frontmatter:
+          alwaysApply: true
+        body: |-
+
+          Prefer this rule when instructions conflict.
+      findings:
+        - kind: ordering-loss
+          code: priority-unsupported
+          field: priority
+          message: Cursor has no equivalent priority field.
