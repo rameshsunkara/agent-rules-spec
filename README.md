@@ -1,40 +1,70 @@
 # Structured Rules Format for AI Coding Agents
 
-Several AI coding tools now have their own way to store project rules -- `.cursor/rules/`, `.windsurf/rules/`, `.github/instructions/`, `.clinerules/`, `.amazonq/rules/`, and so on. The formats are close enough to feel familiar, but different enough to create annoying duplication: one tool calls it `paths`, another calls it `globs`, another calls it `applyTo`.
+Agent Rules defines portable Markdown instructions under `.agents/rules/`. Tools may read
+them directly or convert them to native formats.
 
-This repo proposes a shared file format so you can write your rules once in `.agents/rules/` and have every tool read them.
+Ramesh Sunkara proposed the format in
+[agents.md issue #179](https://github.com/agentsmd/agents.md/issues/179). It defines
+instruction interchange, not permissions, discovery, or guaranteed model behavior.
 
-## What's in here
-
-- **[RFC.md](RFC.md)** -- The full proposal: motivation, format spec, directory layout, tool mappings
-- **[examples/](examples/)** -- Sample rule files showing different trigger modes
-- **[schema/agent-rule.schema.json](schema/agent-rule.schema.json)** -- JSON Schema for frontmatter validation
-- **[compatibility/mapping.md](compatibility/mapping.md)** -- Field-by-field mapping notes for Cursor, Windsurf, Copilot, Cline, JetBrains, Amazon Q, and adjacent tools like Claude Code
-- **[https://github.com/agentsmd/agents.md/issues/179](https://github.com/agentsmd/agents.md/issues/179)** -- The GitHub issue proposing this format on agents.md
-
-## The format
-
-Markdown with optional YAML frontmatter. A file with no frontmatter is valid (treated as always-on).
+## Draft grammar
 
 ```markdown
 ---
+spec-version: 1
 name: api-conventions
-description: REST API design patterns for this codebase
-trigger: auto
+description: REST API design patterns for this repository
+activation: on-match
 paths:
-  - "src/api/**/*.ts"
-priority: 100
+  - "src/api/**"
+  - "src/routes/**"
 ---
 
-# API Conventions
+# API conventions
 
-When writing API endpoints...
+Validate request bodies before processing.
 ```
 
-## How it fits with existing standards
+The portable core has two modes:
 
-- **[AGENTS.md](https://agents.md)** handles project instructions. This doesn't replace it.
-- **[Agent Skills](https://agentskills.io)** handles reusable capabilities. This doesn't replace that either.
-- This handles the gap between them: structured rules scoped to specific files or directories.
+- `activation: always` for global rules;
+- `activation: on-match` with `paths` for conditional path selection.
 
-Cursor already reads from `.agents/skills/`, so the `.agents/` directory has real cross-tool precedent.
+Manual activation, keywords, and priority are experimental. Discovery, imports, signing,
+and model-decided activation are outside grammar 1.
+
+## Repository contents
+
+- [`RFC.md`](RFC.md) — format semantics
+- [`schema/`](schema/) — frontmatter and projection schemas
+- [`conformance/v1/`](conformance/v1/) — conformance fixtures
+- [`examples/`](examples/) — example rules
+- [`compatibility/mapping.md`](compatibility/mapping.md) — dated target mappings
+
+## Conformance
+
+Parser, selector, and converter roles may be claimed independently. See
+[RFC §2](RFC.md#2-conformance-roles).
+
+## Validate the draft
+
+```shell
+python -m pip install -r requirements-dev.txt
+python scripts/check_spec.py
+```
+
+The checker tests agreement among schemas, examples, fixtures, and the artifact index. It is
+not a reference implementation. Other tools, including Dylan Durst's
+[`agent-rules-tool`](https://github.com/canardleteer/agent-rules-tool), may run the fixtures.
+
+Agent Rules complements project-wide [AGENTS.md](https://agents.md) instructions and
+reusable [Agent Skills](https://agentskills.io).
+
+## Status
+
+Experimental draft. Mapping evidence was checked on 2026-07-09, and Claude Code was tested
+directly. Cross-product glob equivalence and direct Cursor and Copilot tests remain open.
+
+## License
+
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)

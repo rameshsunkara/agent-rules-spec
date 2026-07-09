@@ -1,0 +1,13 @@
+# Python environment and checker artifacts
+.venv*/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Editor / OS cruft
+.DS_Store
+*.swp
